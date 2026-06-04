@@ -1,7 +1,7 @@
-// ==酒馆菜单管理器：魔法面板模块（左下弹出 · 单滑块缩放）==
+// ==酒馆菜单管理器：魔法面板模块（左下弹出 · 缩放）==
 // 模块职责：替换酒馆魔法棒按钮(#extensionsMenuButton)和左下选项按钮(#options_button)
 // 点击后在按钮左下方弹出面板，支持编辑模式将按钮移入"更多"折叠区
-// 图标与字体大小可通过滑块同步缩放，设置自动保存
+// 图标与字体大小跟随面板缩放，设置自动保存
 // ★ 面板宽度可在此直接修改，手机端同步生效 ★
 // 注意：本模块与下方的"菜单精简"模块共存；本模块负责弹出面板，
 // 菜单精简模块负责更全面的隐藏/排序/分栏管理。两个模块通过
@@ -360,7 +360,7 @@
     }
 
     initScale() {
-      const saved = parseFloat(localStorage.getItem(STORAGE_CONTENT_SCALE) || '1');
+      const saved = parseFloat(_mpStore.get(STORAGE_CONTENT_SCALE) || '1');
       this.panel.style.setProperty('--content-scale', saved);
     }
 
@@ -532,7 +532,7 @@
             });
           }
         }
-      } catch(_e) { /* silent */ }
+      } catch(_e) { console.warn('[MagicPanel] saveSortOrder failed', _e); }
       return buttons;
     }
 
@@ -618,8 +618,6 @@
       });
 
       this.initDragHandlers();
-
-      requestAnimationFrame(() => this.position());
 
       requestAnimationFrame(() => this.position());
     }
