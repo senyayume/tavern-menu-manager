@@ -721,7 +721,7 @@
       }
       try {
         _mpStore.set('magic_panel_order_' + this.activeMenu.key, _order);
-      } catch(_e) { /* silent */ }
+      } catch(_e) { console.warn('[MagicPanel] saveSortOrder failed', _e); }
       // Exit sort mode
       this.exitSortMode();
       var _sortBtn = this.panel.querySelector('.magic-panel-sort-btn');
