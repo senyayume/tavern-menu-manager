@@ -10,6 +10,27 @@
 (function() {
   'use strict';
 
+  // ── 双模持久化：ST 原生扩展 → extension_settings；酒馆助手 → localStorage ──
+  function magicStore() {
+    var _s = { type: 'ls', ls: null };
+    try {
+      var _ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext && SillyTavern.getContext()) || null;
+      if (_ctx && _ctx.extension_settings) {
+        _s.type = 'st';
+        _s.ctx = _ctx;
+        _s.save = function() { try { _ctx.saveSettingsDebounced(); } catch(e) {} };
+      }
+    } catch(e) {}
+    if (_s.type === 'ls') {
+      _s.ls = window.frameElement ? window.parent.localStorage : window.localStorage;
+    }
+    return {
+      get: function(k) { try { return _s.type === 'st' ? _s.ctx.extension_settings[k] : JSON.parse(_s.ls.getItem(k) || 'null'); } catch(e) { return null; } },
+      set: function(k, v) { try { if (_s.type === 'st') { _s.ctx.extension_settings[k] = v; _s.save(); } else { _s.ls.setItem(k, JSON.stringify(v)); } } catch(e) {} }
+    };
+  }
+  var _mpStore = magicStore();
+
   // 面板水平位置微调（单位：像素），当前值已对齐按钮，一般无需修改
   const PANEL_OFFSET_X = 0;
 
@@ -28,8 +49,8 @@
     return document;
   }
 
-  function getHiddenButtons() { try { var _ls = (window.frameElement ? window.parent : window).localStorage; return JSON.parse(_ls.getItem(STORAGE_HIDDEN)) || []; } catch(e) { return []; } }
-  function saveHiddenButtons(list) { try { var _ls = (window.frameElement ? window.parent : window).localStorage; _ls.setItem(STORAGE_HIDDEN, JSON.stringify(list)); } catch(e) {} }
+  function getHiddenButtons() { try { return _mpStore.get(STORAGE_HIDDEN) || []; } catch(e) { return []; } }
+  function saveHiddenButtons(list) { try { _mpStore.set(STORAGE_HIDDEN, list); } catch(e) {} }
 
   // MenuCleaner cross-module: read hidden selectors from menu_cleaner_settings
   function getMcHiddenIds() {
@@ -496,10 +517,8 @@
       }
       // Apply stored reorder from dedicated localStorage key
       try {
-        var _orderKey = 'magic_panel_order_' + config.key;
-        var _raw = this.rootDoc.defaultView.localStorage.getItem(_orderKey);
-        if (_raw) {
-          var _orderArr = JSON.parse(_raw);
+        var _orderArr = _mpStore.get('magic_panel_order_' + config.key);
+        if (_orderArr && Array.isArray(_orderArr)) {
           if (_orderArr && _orderArr.length > 0) {
             var _orderMap = {};
             for (var _oi = 0; _oi < _orderArr.length; _oi++) _orderMap[_orderArr[_oi]] = _oi;
@@ -703,8 +722,7 @@
         if (_bid) _order.push(_bid);
       }
       try {
-        var _orderKey = 'magic_panel_order_' + this.activeMenu.key;
-        this.rootDoc.defaultView.localStorage.setItem(_orderKey, JSON.stringify(_order));
+        _mpStore.set('magic_panel_order_' + this.activeMenu.key, _order);
       } catch(_e) { /* silent */ }
       // Exit sort mode
       this.exitSortMode();
