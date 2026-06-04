@@ -1,6 +1,6 @@
 # 🍺 Tavern Menu Manager 酒馆菜单管理器
 
-为 [SillyTavern](https://github.com/SillyTavern/SillyTavern) / TauriTavern 设计的菜单管理器脚本。
+为 [SillyTavern](https://github.com/SillyTavern/SillyTavern) / [TauriTavern](https://tauritavern.github.io/) 设计的菜单管理器脚本。
 
 提供**快捷操作面板** + **菜单精简管理**两大功能：面板弹出一键操作，隐藏/显示按钮，拖拽排序，扩展自动发现。
 
