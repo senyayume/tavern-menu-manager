@@ -920,7 +920,7 @@
   ];
 
   // Groups that support reordering
-  const REORDER_GROUP_IDS = ['extensionsSettings', 'extensionsMenu', 'options'];
+  const REORDER_GROUP_IDS = ['extensionsSettings'];
 
   const ALWAYS_HIDDEN_SELECTORS = [
     '#rm_api_block > div.flex-container.flexFlowColumn > #openai_api > div.flex-container.flex > #test_api_button',

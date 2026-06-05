@@ -1,5 +1,13 @@
 # Changelog
 
+
+## [1.1.2] - 2025-06-04
+
+### Changed
+
+- 精简器重排序只保留 extensionSettings（扩展菜单）— options（左下菜单）和 extensionsMenu（魔棒）的重排序对 Magic Panel 无任何效果（Magic Panel 使用独立的 magic_panel_order_{key} 排序系统），移除冗余 UI 避免用户困惑。
+
+
 ## [1.1.1] - 2025-06-04
 
 ### Fixed
