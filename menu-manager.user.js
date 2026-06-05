@@ -189,6 +189,7 @@ const STORAGE_PINNED = 'magic_panel_pinned_buttons';
       margin:0 4px;
     }
     .magic-panel.is-sorting .magic-panel-search { display:none; }
+    .magic-panel-opacity-slider { width:60px; margin:0 4px; vertical-align:middle; cursor:pointer; accent-color:var(--SmartThemeQuoteColor,#5bc0de); }
     .magic-panel-sort-btn {
       cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
     }
@@ -335,8 +336,8 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
         var _savedOp = _mpStore.get('magic_panel_opacity');
         if (_savedOp) { _opSlider.value = _savedOp; this.panel.style.opacity = _savedOp; }
         _opSlider.addEventListener('input', function() {
-          this.panel.style.opacity = this.value;
-          _mpStore.set('magic_panel_opacity', this.value);
+          this.panel.style.opacity = e.target.value;
+          _mpStore.set('magic_panel_opacity', e.target.value);
         }.bind(this));
       }
       this.sortBtn.addEventListener('click', () => {
@@ -599,6 +600,7 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
     }
 
     render() {
+      const self = this;
       const buttons = this.collectButtons();
       const mcHidden = getMcHiddenIds();
       const mpHidden = getHiddenButtons();
@@ -690,7 +692,7 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
       });
       var _searchInput = this.content.parentElement.querySelector('.magic-panel-search');
       if (_searchInput) {
-        _searchInput.style.display = this.isEditing ? 'none' : '';
+        _searchInput.style.display = this.isEditing ? 'none' : 'inline-block';
         _searchInput.addEventListener('input', function() {
           var q = this.value.toLowerCase().trim();
           var btns = self.panel.querySelectorAll('.magic-panel-btn');
