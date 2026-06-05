@@ -1,6 +1,5 @@
 # Changelog
 
-
 ## [1.1.2] - 2025-06-04
 
 ### Changed
@@ -42,8 +41,4 @@
 - **拖拽排序**：自定义 mousedown/touch 拖拽实现，兼容 TauriTavern 与原始 SillyTavern。
 - **持久化存储**：排序顺序独立存储 magic_panel_order_{groupId}，不与菜单精简器冲突。
 - **iframe 兼容**：支持酒馆助手插件环境运行。
-- **触屏 + 鼠标双端支持**：手机/桌面均可拖拽操作。 - 2025-06-04
-
-### Changed
-
-- 精简器重排序只保留 extensionSettings（扩展菜单）— options（左下菜单）和 extensionsMenu（魔棒）的重排序对 Magic Panel 无任何效果（Magic Panel 使用独立的 magic_panel_order_{key} 排序系统），移除冗余 UI 避免用户困惑。
+- **触屏 + 鼠标双端支持**：手机/桌面均可拖拽操作。
