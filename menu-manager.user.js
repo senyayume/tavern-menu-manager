@@ -1,4 +1,12 @@
-// ==酒馆菜单管理器：魔法面板模块（左下弹出 · 缩放）==
+// ==酒馆菜单管理器：魔法面板模块（左下    }
+    if (group.id === 'extensionsSettings') {
+      html += '<div class="menu-cleaner-reorder-entry" data-group="extensionsSettings">' +
+                '<div class="menu-cleaner-reorder-trigger" style="color:var(--SmartThemeQuoteColor,#5bc0de);font-size:0.85em;cursor:pointer;display:block;padding:6px 0;text-align:center;border-top:1px solid var(--SmartThemeBorderColor,#333);margin-top:4px;">' +
+                  '⇅ 扩展菜单重排序' +
+                '</div>' +
+              '</div>';
+    }
+  弹出 · 缩放）==
 // 模块职责：替换酒馆魔法棒按钮(#extensionsMenuButton)和左下选项按钮(#options_button)
 // 点击后在按钮左下方弹出面板，支持编辑模式将按钮移入"更多"折叠区
 // 图标与字体大小跟随面板缩放，设置自动保存
@@ -161,7 +169,7 @@
       margin-top:12px; border-top:1px solid var(--SmartThemeBorderColor); padding-top:8px;
     }
     .magic-panel-more-toggle {
-      cursor:pointer; display:flex; align-items:center; gap:6px; color:var(--SmartThemeBodyColor,#888);
+      cursor:pointer; display:flex; align-items:center; gap:6px; color:#888;
     }
     .magic-panel-more-toggle:hover { color:var(--SmartThemeQuoteColor); }
     .magic-panel-more-grid { display:none; margin-top:8px; }
@@ -818,7 +826,6 @@
   const STORAGE_KEY = 'menu_cleaner_settings';
   let autoIdSeq = 0;
   let activeTab = 'hide';
-  let showSettingsPanel = false;
   let extPanelVisible = false;
   let rescanTimer = null;
   let dragActive = false; // set while user is dragging a reorder item
@@ -1037,8 +1044,7 @@
 #menu-cleaner-open-popup,
 #menu-cleaner-close,
 #menu-cleaner-rescan,
-#menu-cleaner-reset-order,
-#menu-cleaner-settings-btn {
+#menu-cleaner-reset-order {
   white-space: nowrap !important;
   flex-shrink: 0;
 }
@@ -1153,7 +1159,7 @@
   position: absolute;
   cursor: pointer;
   inset: 0;
-  background: var(--SmartThemeInputColor,#555);
+  background: #555;
   border-radius: 22px;
   transition: background 0.25s;
 }
@@ -1191,7 +1197,7 @@
   user-select: none;
 }
 
-.menu-cleaner-tab:hover { color: var(--SmartThemeBodyColor,#ccc); background: rgba(255, 255, 255, 0.03); }
+.menu-cleaner-tab:hover { color: #ccc; background: rgba(255, 255, 255, 0.03); }
 .menu-cleaner-tab.active { color: #fff; border-bottom-color: #7c5cff; }
 
 /* ── Reorder Items ───────────────────────────────── */
@@ -1225,7 +1231,7 @@
 /* ── Drag Handle ─────────────────────────────────── */
 .menu-cleaner-drag-handle {
   cursor: grab;
-  color: var(--SmartThemeBodyColor,#666);
+  color: #666;
   font-size: 1.1em;
   letter-spacing: -2px;
   user-select: none;
@@ -1233,7 +1239,7 @@
   transition: color 0.15s;
 }
 
-.menu-cleaner-drag-handle:hover { color: var(--SmartThemeQuoteColor,#aaa); }
+.menu-cleaner-drag-handle:hover { color: #aaa; }
 .menu-cleaner-drag-handle:active { cursor: grabbing; }
 
 /* ── Drag States ─────────────────────────────────── */
@@ -1362,7 +1368,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
 #menu-cleaner-ext-panel #extensions_settings .inline-drawer-toggle.inline-drawer-header,
 #menu-cleaner-ext-panel #extensions_settings2 .inline-drawer-toggle.inline-drawer-header {
-  color: var(--SmartThemeBodyColor,#f5f5f5) !important;
+  color: #f5f5f5 !important;
   background-image: linear-gradient(348deg, var(--white30a) 2%, var(--grey30a) 10%, var(--black70a) 95%, var(--SmartThemeQuoteColor) 100%);
   border: 1px solid var(--SmartThemeBorderColor);
   border-radius: 10px;
@@ -2239,13 +2245,13 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         '<div class="menu-cleaner-popup-header">' +
           '<h2>酒馆菜单管理器</h2>' +
           '<div class="menu-cleaner-popup-actions">' +
-            '<button id="menu-cleaner-settings-btn" class="menu_button">设置</button>' +
+            '' +
             '<button id="menu-cleaner-close" class="menu_button">✕ 关闭</button>' +
           '</div>' +
         '</div>' +
-        '<div class="menu-cleaner-tabs" id="menu-cleaner-tabs">' +
+        '<div class="menu-cleaner-tabs" id="menu-cleaner-tabs" style="display:none;">' +
           '<div class="menu-cleaner-tab active" data-tab="hide">隐藏元素</div>' +
-          '<div class="menu-cleaner-tab" data-tab="reorder">重排序</div>' +
+          
         '</div>' +
         '<div id="menu-cleaner-popup-body" class="menu-cleaner-popup-body"></div>' +
       '</div>';
@@ -2256,7 +2262,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     closeBtn && closeBtn.addEventListener('click', closePopup);
     backdrop && backdrop.addEventListener('click', closePopup);
     var settingsBtn = doc.getElementById('menu-cleaner-settings-btn');
-    settingsBtn && settingsBtn.addEventListener('click', toggleSettingsPanel);
+    
 
     var tabs = doc.querySelectorAll('.menu-cleaner-tab');
     for (var t = 0; t < tabs.length; t++) {
@@ -2270,8 +2276,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     refreshDiscoveryCache();
     doc.getElementById('menu-cleaner-backdrop').style.display = 'block';
     doc.getElementById('menu-cleaner-popup').style.display = 'flex';
-    showSettingsPanel = false;
-    updatePopupView();
     refreshPopup();
     positionPopup();
   }
@@ -2293,7 +2297,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     var popup = doc.getElementById('menu-cleaner-popup');
     if (backdrop) backdrop.style.display = 'none';
     if (popup) popup.style.display = 'none';
-    showSettingsPanel = false;
     // Refresh extension panel to reflect any reorder changes made in popup
     if (extPanelVisible) renderExtensionsPanel();
     applyNativeReorder('extensionsSettings');
@@ -2302,37 +2305,13 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     }
   }
 
-  function toggleSettingsPanel() {
-    showSettingsPanel = !showSettingsPanel;
-    updatePopupView();
-    if (!showSettingsPanel) refreshPopup();
-  }
+  
 
-  function updatePopupView() {
-    var tabsEl = doc.getElementById('menu-cleaner-tabs');
-    var settingsBtn = doc.getElementById('menu-cleaner-settings-btn');
-
-    if (showSettingsPanel) {
-      if (tabsEl) tabsEl.style.display = 'none';
-      if (settingsBtn) settingsBtn.textContent = '返回';
-      renderSettingsView();
-    } else {
-      if (tabsEl) tabsEl.style.display = '';
-      if (settingsBtn) settingsBtn.textContent = '设置';
-    }
-  }
+  
 
   function switchTab(tabName) {
     activeTab = tabName;
-    var tabs = doc.querySelectorAll('.menu-cleaner-tab');
-    for (var t = 0; t < tabs.length; t++) {
-      if (tabs[t].dataset.tab === tabName) {
-        tabs[t].classList.add('active');
-      } else {
-        tabs[t].classList.remove('active');
-      }
-    }
-    refreshPopup();
+    renderHideView();
   }
 
   // ── Column mode ──────────────────────────────────────────────────
@@ -2350,74 +2329,11 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
     applyNativeReorder('extensionsSettings');
 
-    if (!showSettingsPanel && activeTab === 'reorder') renderReorderView();
 
-    if (showSettingsPanel) renderSettingsView();
   }
 
   // ── Settings panel view ─────────────────────────────────────────
-  function renderSettingsView() {
-    var body = doc.getElementById('menu-cleaner-popup-body');
-    if (!body) return;
-
-    var html =
-      '<div class="menu-cleaner-settings-panel">' +
-        '<button id="menu-cleaner-rescan" class="menu_button menu-cleaner-settings-btn-full">手动重新扫描</button>' +
-        '<button id="menu-cleaner-reset-order" class="menu_button menu-cleaner-settings-btn-full">恢复原始排序</button>' +
-        '<button id="menu-cleaner-clear-data" class="menu_button menu-cleaner-settings-btn-full">清除插件数据</button>' +
-        '<div class="menu-cleaner-settings-divider">—————— 扩展面板分栏 ——————</div>' +
-        '<div id="menu-cleaner-colmode-dual" class="menu-cleaner-settings-row menu-cleaner-colmode-option' + (settings.columnMode === 'dual' ? ' menu-cleaner-colmode-active' : '') + '">' +
-          '<span>双栏</span>' +
-        '</div>' +
-        '<div id="menu-cleaner-colmode-single" class="menu-cleaner-settings-row menu-cleaner-colmode-option' + (settings.columnMode === 'single' ? ' menu-cleaner-colmode-active' : '') + '">' +
-          '<span>单栏</span>' +
-        '</div>' +
-        '<div class="menu-cleaner-settings-divider">—————— 调试用内容 ——————</div>' +
-        '<div class="menu-cleaner-settings-row">' +
-          '<span>重扫描消息toast</span>' +
-          '<label class="menu-cleaner-toggle">' +
-            '<input type="checkbox" id="menu-cleaner-rescan-toast"' + (settings.rescanToast ? ' checked' : '') + '>' +
-            '<span class="menu-cleaner-slider"></span>' +
-          '</label>' +
-        '</div>' +
-      '</div>';
-
-    body.innerHTML = html;
-
-    var rescanBtn = doc.getElementById('menu-cleaner-rescan');
-    rescanBtn && rescanBtn.addEventListener('click', function() { doRescan(); });
-    var resetBtn = doc.getElementById('menu-cleaner-reset-order');
-    resetBtn && resetBtn.addEventListener('click', function() { resetAllReorders(); });
-
-    var clearBtn = doc.getElementById('menu-cleaner-clear-data');
-    clearBtn && clearBtn.addEventListener('click', function() {
-      if (!win.confirm('确定要清除所有插件配置数据吗？此操作不可撤销。')) return;
-      settings = Object.assign({}, defaultSettings);
-      saveSettings();
-      clearAllHides();
-      showSettingsPanel = false;
-      activeTab = 'hide';
-      updatePopupView();
-      captureInitialSnapshot();
-      refreshDiscoveryCache();
-      applyHides();
-      applyNativeReorder('extensionsSettings');
-      renderExtensionsPanel();
-    });
-
-    var toastCb = doc.getElementById('menu-cleaner-rescan-toast');
-    toastCb && toastCb.addEventListener('change', function(e) {
-      settings.rescanToast = e.target.checked;
-      saveSettings();
-    });
-
-    var dualBtn = doc.getElementById('menu-cleaner-colmode-dual');
-    dualBtn && dualBtn.addEventListener('click', function() { applyColumnMode('dual'); });
-    var singleBtn = doc.getElementById('menu-cleaner-colmode-single');
-    singleBtn && singleBtn.addEventListener('click', function() { applyColumnMode('single'); });
-
-    positionPopup();
-  }
+  
 
   // ── Reorder view ────────────────────────────────────────────────
   function renderReorderView() {
@@ -2837,11 +2753,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Build popup content ─────────────────────────────────────────
   function refreshPopup() {
-    if (showSettingsPanel) return;
-    if (activeTab === 'reorder') {
-      renderReorderView();
-      return;
-    }
     renderHideView();
   }
 
@@ -2934,7 +2845,31 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       });
     }
 
-    var cbs = doc.querySelectorAll('.menu-cleaner-checkbox');
+    // Reorder trigger
+    var _rtg = doc.querySelectorAll('.menu-cleaner-reorder-trigger');
+    for (var _rt = 0; _rt < _rtg.length; _rt++) {
+      _rtg[_rt].addEventListener('click', function() {
+        var _en = this.closest('.menu-cleaner-reorder-entry');
+        if (!_en) return; var _gid = _en.dataset.group;
+        var _items = getReorderItems(_gid);
+        if (!_items || _items.length === 0) return;
+        var _body = doc.getElementById('menu-cleaner-popup-body');
+        if (!_body) return;
+        var _h = '<div class="menu-cleaner-reorder-back" style="padding:8px 16px;cursor:pointer;font-size:0.85em;color:var(--SmartThemeQuoteColor,#5bc0de);">← 返回隐藏元素</div>';
+        _h += '<div class="menu-cleaner-category"><div class="menu-cleaner-category-header"><strong>扩展菜单重排序</strong><span class="menu-cleaner-category-count">' + _items.length + ' 项</span></div>';
+        _h += '<div class="menu-cleaner-category-body">';
+        for (var _ri = 0; _ri < _items.length; _ri++) {
+          _h += '<div class="menu-cleaner-reorder-item" data-selector="' + escHtml(_items[_ri].selector) + '" data-group="' + _gid + '" data-index="' + _ri + '" data-column="-1">';
+          _h += '<span class="menu-cleaner-drag-handle" title="拖动排序">⋮⋮</span><span title="' + escHtml(_items[_ri].selector) + '">' + escHtml(_items[_ri].label) + '</span></div>';
+        }
+        _h += '</div></div>';
+        _body.innerHTML = _h;
+        var _bb = _body.querySelector('.menu-cleaner-reorder-back');
+        if (_bb) _bb.addEventListener('click', function() { renderHideView(); bindPopupEvents(); });
+        bindReorderDragEvents(); positionPopup();
+      });
+    }
+    var cbs = doc.querySelectorAll('.menu-cleaner-checkbox');var cbs = doc.querySelectorAll('.menu-cleaner-checkbox');
     for (var c = 0; c < cbs.length; c++) {
       cbs[c].addEventListener('change', function(e) {
         var selector = e.target.dataset.selector;
@@ -2994,8 +2929,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
     saveSettings();
 
-    showSettingsPanel = false;
-    activeTab = 'reorder';
+    activeTab = 'hide';
     var tabs = doc.querySelectorAll('.menu-cleaner-tab');
     for (var t = 0; t < tabs.length; t++) {
       if (tabs[t].dataset.tab === 'reorder') {
@@ -3004,7 +2938,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         tabs[t].classList.remove('active');
       }
     }
-    updatePopupView();
     renderReorderView();
 
     applyNativeReorder('extensionsSettings');
