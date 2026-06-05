@@ -1,24 +1,34 @@
 # Changelog
 
-
-## [1.2.2] - 2025-06-04
+## [1.1.2] - 2025-06-04
 
 ### Changed
 
-- 精简器重排序只保留 extensionSettings（扩展菜单）— options（左下菜单）和 extensionsMenu（魔棒）的重排序对 Magic Panel 无任何效果（Magic Panel 使用独立的 magic_panel_order_{key} 排序系统），移除冗余 UI 避免用户困惑。
+- 精简器重排序只保留 extensionSettings（扩展菜单）— options（左下菜单）和 extensionsMenu（魔棒）的重排序对 Magic Panel 无任何效果，移除冗余 UI 避免用户困惑。
 
+---
 
-## [1.2.1] - 2025-06-04
+## [1.1.1] - 2025-06-04
 
 ### Fixed
 
-- **拖拽期间按 Esc 导致 dragActive 永久锁定**：关闭弹窗时重置 dragActive 状态并清理拖拽 CSS 残留，防止自动重扫描功能永久停摆。
+- **拖拽期间按 Esc 导致 dragActive 永久锁定**：关闭弹窗时重置拖拽状态并清理 CSS 残留，防止自动重扫描功能永久停摆。
 - **loadSettings 过早清理扩展按钮配置**：扩展可能尚未注入 DOM 时，不再删除用户已保存的隐藏设置。
 
+---
 
-All notable changes to this project will be documented in this file.
+## [1.1.0] - 2025-06-04
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+### Added
+
+- **面板尺寸拖拽调整**：面板右下角新增拖拽手柄（↘），可自由调整面板宽度(200-600px)和高度(200-800px)，尺寸自动保存。
+- **菜单精简器拖拽防残留**：关闭弹窗时自动清除拖拽产生的幽灵元素，不再需要重启酒馆。
+
+### Fixed
+
+- **拖拽留影**：关闭弹窗时拖拽元素的克隆副本残留在 DOM 中，需重启酒馆才能消失 → 关闭弹窗自动清除。
+
+---
 
 ## [1.0.0] - 2025-06-04
 
@@ -32,18 +42,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **持久化存储**：排序顺序独立存储 `magic_panel_order_{groupId}`，不与菜单精简器冲突。
 - **iframe 兼容**：支持酒馆助手插件环境运行。
 - **触屏 + 鼠标双端支持**：手机/桌面均可拖拽操作。
-
-## [1.2.0] - 2025-06-04
-
-### Added
-
-- **面板尺寸拖拽调整**：面板右下角新增拖拽手柄（↘），可自由调整面板宽度(200-600px)和高度(200-800px)，尺寸自动保存。
-- **菜单精简器拖拽防残留**：关闭弹窗时自动清除拖拽产生的幽灵元素，不再需要重启酒馆。
-
-### Changed
-
-- 更新日志独立维护，版本按 SemVer 管理。
-
-### Fixed
-
-- **拖拽留影**：关闭弹窗时拖拽元素的克隆副本残留在 DOM 中，需重启酒馆才能消失 → 关闭弹窗自动清除。
