@@ -161,7 +161,7 @@
       margin-top:12px; border-top:1px solid var(--SmartThemeBorderColor); padding-top:8px;
     }
     .magic-panel-more-toggle {
-      cursor:pointer; display:flex; align-items:center; gap:6px; color:#888;
+      cursor:pointer; display:flex; align-items:center; gap:6px; color:var(--SmartThemeBodyColor,#888);
     }
     .magic-panel-more-toggle:hover { color:var(--SmartThemeQuoteColor); }
     .magic-panel-more-grid { display:none; margin-top:8px; }
@@ -1153,7 +1153,7 @@
   position: absolute;
   cursor: pointer;
   inset: 0;
-  background: #555;
+  background: var(--SmartThemeInputColor,#555);
   border-radius: 22px;
   transition: background 0.25s;
 }
@@ -1191,7 +1191,7 @@
   user-select: none;
 }
 
-.menu-cleaner-tab:hover { color: #ccc; background: rgba(255, 255, 255, 0.03); }
+.menu-cleaner-tab:hover { color: var(--SmartThemeBodyColor,#ccc); background: rgba(255, 255, 255, 0.03); }
 .menu-cleaner-tab.active { color: #fff; border-bottom-color: #7c5cff; }
 
 /* ── Reorder Items ───────────────────────────────── */
@@ -1225,7 +1225,7 @@
 /* ── Drag Handle ─────────────────────────────────── */
 .menu-cleaner-drag-handle {
   cursor: grab;
-  color: #666;
+  color: var(--SmartThemeBodyColor,#666);
   font-size: 1.1em;
   letter-spacing: -2px;
   user-select: none;
@@ -1233,7 +1233,7 @@
   transition: color 0.15s;
 }
 
-.menu-cleaner-drag-handle:hover { color: #aaa; }
+.menu-cleaner-drag-handle:hover { color: var(--SmartThemeQuoteColor,#aaa); }
 .menu-cleaner-drag-handle:active { cursor: grabbing; }
 
 /* ── Drag States ─────────────────────────────────── */
@@ -1362,7 +1362,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
 #menu-cleaner-ext-panel #extensions_settings .inline-drawer-toggle.inline-drawer-header,
 #menu-cleaner-ext-panel #extensions_settings2 .inline-drawer-toggle.inline-drawer-header {
-  color: #f5f5f5 !important;
+  color: var(--SmartThemeBodyColor,#f5f5f5) !important;
   background-image: linear-gradient(348deg, var(--white30a) 2%, var(--grey30a) 10%, var(--black70a) 95%, var(--SmartThemeQuoteColor) 100%);
   border: 1px solid var(--SmartThemeBorderColor);
   border-radius: 10px;
