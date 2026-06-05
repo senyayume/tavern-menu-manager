@@ -89,6 +89,24 @@ tavern-menu-manager/
 
 ## 📋 更新日志
 
+### v1.2.0 (2025-06-05)
+
+**新增**
+- MENU_REGISTRY 统一配置主源：MENU_CONFIGS 和 PANEL_GROUPS 自动派生，新增菜单项改一处即可
+- 面板自适应按钮（↔）：一键缩放面板到刚好包裹按钮，再次点击恢复默认
+- 面板缩放滑块（Aa）：调节按钮图标和文字大小（60%-150%），自动保存
+
+**变更**
+- 存储层统一：magicStore() → Store 对象（mp + mc 命名空间）
+- 共享能力收口：getRootDocument / escHtml / getMcHiddenIds → Runtime
+- 跨模块桥梁 Runtime.openMenuCleanerPopup / .isMenuCleanerPopupOpen / .MP_VISIBLE_SELECTORS
+- 面板尺寸按菜单隔离（左下/魔棒各自独立记忆）
+- 面板按钮垂直居中优化
+- 精简器 item 渲染函数提取（buildHideItemHTML）
+
+**删除**
+- magicStore()、_mpStore 别名、_escDiv 死变量、过渡注释
+
 ### v1.1.3 (2025-06-05)
 
 **修复**

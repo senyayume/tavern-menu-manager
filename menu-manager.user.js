@@ -1,35 +1,179 @@
-// ==酒馆菜单管理器：魔法面板模块（左下弹出 · 缩放）==
-// 模块职责：替换酒馆魔法棒按钮(#extensionsMenuButton)和左下选项按钮(#options_button)
-// 点击后在按钮左下方弹出面板，支持编辑模式将按钮移入"更多"折叠区
-// 图标与字体大小跟随面板缩放，设置自动保存
-// ★ 面板宽度可在此直接修改，手机端同步生效 ★
-// 注意：本模块与下方的"菜单精简"模块共存；本模块负责弹出面板，
-// 菜单精简模块负责更全面的隐藏/排序/分栏管理。两个模块通过
-// 各自的 localStorage key 独立存储设置，互不覆盖。
+// ==酒馆菜单管理器 v1.2.0==
+// 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
+// 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
+// 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
+// ★ 面板宽度、缩放、自适应一键调整，尺寸自动保存 ★
 
+var Store = (function() {
+  try { var ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext && SillyTavern.getContext()) || null; var ctx_ok = ctx && ctx.extension_settings ? ctx : null; } catch(e) { var ctx_ok = null; }
+  var ls = (function() { try { return window.frameElement ? window.parent.localStorage : window.localStorage; } catch(e) { return null; } })();
+  var _mp = {
+    get: function(k) { try { return ctx_ok ? JSON.parse(JSON.stringify(ctx_ok.extension_settings[k])) : JSON.parse(ls.getItem(k) || 'null'); } catch(e) { return null; } },
+    set: function(k, v) { try { if (ctx_ok) { ctx_ok.extension_settings[k] = v; ctx_ok.saveSettingsDebounced(); } else { ls.setItem(k, JSON.stringify(v)); } } catch(e) {} }
+  };
+  var _mc = {
+    getAll: function() { try { return JSON.parse(ls.getItem('menu_cleaner_settings') || '{}'); } catch(e) { return null; } },
+    setAll: function(o) { try { ls.setItem('menu_cleaner_settings', JSON.stringify(o)); } catch(e) {} },
+    getHiddenSelectors: function() {
+      try {
+        var hs = JSON.parse(ls.getItem('menu_cleaner_settings') || '{}').hiddenSelectors || {};
+        var keys = Object.keys(hs).filter(function(k) { return hs[k]; });
+        var r = keys.slice();
+        for (var i = 0; i < keys.length; i++) { if (keys[i][0] === '#') r.push(keys[i].substring(1)); }
+        return r;
+      } catch(e) { return []; }
+    }
+  };
+  return { mp: _mp, mc: _mc };
+})();
+
+
+// ── Shared Runtime Utilities ──
+var Runtime = {
+  getRootDocument: function() {
+    if (window.parent && window.parent.document) {
+      try {
+        if (window.parent.document.getElementById('extensionsMenuButton') || window.parent.document.getElementById('options_button')) return window.parent.document;
+      } catch(e) {}
+    }
+    return document;
+  },
+  escHtml: function(str) {
+    if (typeof str !== 'string') str = String(str || '');
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  },
+  getMcHiddenIds: function() { return Store.mc.getHiddenSelectors(); },
+  // ── Shared built-in menu items (used by both controllers) ──
+  BUILTIN_OPTIONS_ITEMS: [
+    { selector: '#option_toggle_AN',        label: '作者注释' },
+    { selector: '#option_toggle_CFG',       label: 'CFG缩放' },
+    { selector: '#option_toggle_logprobs',  label: '词符概率' },
+    { selector: '#option_new_bookmark',     label: '保存检查点' },
+    { selector: '#option_convert_to_group', label: '转换为群聊' },
+    { selector: '#option_start_new_chat',   label: '开始新聊天' },
+    { selector: '#option_close_chat',       label: '关闭聊天' },
+    { selector: '#option_select_chat',      label: '管理聊天文件' },
+    { selector: '#option_delete_mes',       label: '删除消息' },
+    { selector: '#option_regenerate',       label: '重新生成' },
+    { selector: '#option_impersonate',      label: 'AI帮答' },
+    { selector: '#option_continue',         label: '继续' }
+  ],
+  // ── MenuCleaner popup control (registered by MC at init, called by MP) ──
+  openMenuCleanerPopup: null,
+  isMenuCleanerPopupOpen: null,
+  // ── MagicPanel DOM identifiers MenuCleaner must not hide ──
+  MP_VISIBLE_SELECTORS: [
+    '#hide-helper-wand-button',
+    '#menu-cleaner-wand-container',
+    '.magic-panel-wrapper',
+    '.magic-panel-btn'
+  ]
+};
+
+// ── Unified Menu Registry (single source of truth for both controllers) ──
+const MENU_REGISTRY = [
+  {
+    id: 'options',
+    buttonId: 'options_button',
+    items: Runtime.BUILTIN_OPTIONS_ITEMS,
+    mp: {
+      menuId: 'options',
+      allowHidden: true,
+      defaultIcon: 'fa-solid fa-wand-magic-sparkles',
+      selectors: '.interactable'
+    },
+    mc: {
+      name: '左下菜单',
+      discovery: { containers: ['#options'], itemMatch: '.interactable', labelIn: 'span' }
+    }
+  },
+  {
+    id: 'extensionsMenu',
+    buttonId: 'extensionsMenuButton',
+    items: [
+      { selector: '#manageAttachments',       label: '打开数据库' },
+      { selector: '#attachFile',              label: '附加文件' },
+      { selector: '#sd_gen',                  label: '生成图片' },
+      { selector: '#send_picture',            label: 'Generate Caption' },
+      { selector: '#ttsExtensionNarrateAll',  label: 'Narrate All Chat' },
+      { selector: '#token_counter',           label: '词符计数器' },
+      { selector: '#translate_chat',          label: '翻译聊天' },
+      { selector: '#translate_input_message', label: '翻译输入' }
+    ],
+    mp: {
+      menuId: 'extensionsMenu',
+      defaultIcon: 'fa-solid fa-puzzle-piece',
+      selectors: '.list-group-item, #data_bank_wand_container > *, .extension_container > *',
+      skipChildIds: ['extensions-search-container', 'data_bank_wand_container'],
+      skipChildClasses: ['extension_container', 'list-group-item']
+    },
+    mc: {
+      name: '魔棒',
+      discovery: {
+        containers: ['#extensionsMenu'],
+        itemMatch: '.list-group-item',
+        labelIn: 'span',
+        alsoMatchChildren: true
+      }
+    }
+  },
+  {
+    id: 'extensionsSettings',
+    buttonId: 'extensions-settings-button',
+    items: [
+      { selector: '#assets_container',         label: '下载扩展和资源菜单' },
+      { selector: '#expressions_container',    label: '角色表情' },
+      { selector: '#sd_container',             label: '图像生成' },
+      { selector: '#tts_container',            label: 'TTS' },
+      { selector: '#qr--settings',             label: '快速回复' },
+      { selector: '#translation_container',    label: '聊天翻译' },
+      { selector: '#caption_container',        label: '图像描述' },
+      { selector: '#summarize_container',      label: '总结' },
+      { selector: '#regex_container',          label: '正则' },
+      { selector: '#vectors_container',        label: '向量存储' }
+    ],
+    mc: {
+      name: '扩展菜单',
+      discovery: {
+        containers: ['#extensions_settings', '#extensions_settings2'],
+        hasHeader: '.inline-drawer-header',
+        labelInHeader: 'b, [data-i18n]',
+        exclude: ['#qr_container', '#agent_system_container', '#tauritavern_version_container']
+      }
+    }
+  },
+  {
+    id: 'topSettings',
+    items: [
+      { selector: '#ai-config-button',          label: '预设' },
+      { selector: '#sys-settings-button',       label: '插头' },
+      { selector: '#advanced-formatting-button',label: 'AI回复格式化' },
+      { selector: '#WI-SP-button',              label: '世界书' },
+      { selector: '#user-settings-button',      label: '用户设置' },
+      { selector: '#backgrounds-button',        label: '背景' },
+      { selector: '#extensions-settings-button',label: '扩展' },
+      { selector: '#persona-management-button', label: 'USER设置' },
+      { selector: '#rightNavHolder',            label: '角色卡' }
+    ],
+    mc: { name: '顶部导航栏' }
+  },
+  {
+    id: 'presetSettings',
+    buttonId: 'ai-config-button',
+    items: [
+      { selector: '#range_block_openai > div:nth-child(1), #range_block_openai > div:nth-child(2), #range_block_openai > div:nth-child(3), #range_block_openai > div:nth-child(4)', label: '上下文长度及备选回复' },
+      { selector: '#range_block_openai > div:nth-child(11), #range_block_openai > div:nth-child(12), #range_block_openai > div:nth-child(13), #range_block_openai > div:nth-child(14), #range_block_openai > div:nth-child(15), #range_block_openai > div:nth-child(16), #range_block_openai > div:nth-child(17), #range_block_openai > div:nth-child(18)', label: '可调参数' },
+      { selector: '#range_block_openai > div.inline-drawer.m-t-1.wide100p, #range_block_openai > div:nth-child(20), #range_block_openai > div:nth-child(21), #openai_settings > div:nth-child(1) > div:nth-child(1), #openai_settings > div:nth-child(1) > div.inline-drawer.wide100p.flexFlowColumn.marginBot10', label: '提示词格式相关' },
+      { selector: '#openai_settings > div:nth-child(3), #openai_settings > div:nth-child(4), #openai_settings > div:nth-child(5), #openai_settings > div:nth-child(6), #openai_settings > div:nth-child(7), #openai_settings > div:nth-child(8), #openai_settings > div:nth-child(9), #openai_settings > div:nth-child(10), #openai_settings > div:nth-child(11), #openai_settings > div:nth-child(12), #openai_settings > div:nth-child(13), #openai_settings > div.range-block.m-t-1', label: '复选框和下拉菜单' },
+      { selector: '#openai_settings > div.range-block.m-b-1', label: '预设条目' }
+    ],
+    mc: { name: '预设菜单' }
+  }
+];
 (function() {
   'use strict';
 
   // ── 双模持久化：ST 原生扩展 → extension_settings；酒馆助手 → localStorage ──
-  function magicStore() {
-    var _s = { type: 'ls', ls: null };
-    try {
-      var _ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext && SillyTavern.getContext()) || null;
-      if (_ctx && _ctx.extension_settings) {
-        _s.type = 'st';
-        _s.ctx = _ctx;
-        _s.save = function() { try { _ctx.saveSettingsDebounced(); } catch(e) {} };
-      }
-    } catch(e) {}
-    if (_s.type === 'ls') {
-      _s.ls = window.frameElement ? window.parent.localStorage : window.localStorage;
-    }
-    return {
-      get: function(k) { try { return _s.type === 'st' ? _s.ctx.extension_settings[k] : JSON.parse(_s.ls.getItem(k) || 'null'); } catch(e) { return null; } },
-      set: function(k, v) { try { if (_s.type === 'st') { _s.ctx.extension_settings[k] = v; _s.save(); } else { _s.ls.setItem(k, JSON.stringify(v)); } } catch(e) {} }
-    };
-  }
-  var _mpStore = magicStore();
 
   // 面板水平位置微调（单位：像素），当前值已对齐按钮，一般无需修改
   const PANEL_OFFSET_X = 0;
@@ -40,37 +184,11 @@
   const STORAGE_HIDDEN = 'magic_panel_hidden_buttons';
   const STORAGE_CONTENT_SCALE = 'magic_content_scale';
 
-  function getRootDocument() {
-    if (window.parent && window.parent.document) {
-      try {
-        if (window.parent.document.getElementById('extensionsMenuButton') || window.parent.document.getElementById('options_button')) return window.parent.document;
-      } catch(e) {}
-    }
-    return document;
-  }
 
-  function getHiddenButtons() { try { return _mpStore.get(STORAGE_HIDDEN) || []; } catch(e) { return []; } }
-  function saveHiddenButtons(list) { try { _mpStore.set(STORAGE_HIDDEN, list); } catch(e) {} }
+  function getHiddenButtons() { try { return Store.mp.get(STORAGE_HIDDEN) || []; } catch(e) { return []; } }
+  function saveHiddenButtons(list) { try { Store.mp.set(STORAGE_HIDDEN, list); } catch(e) {} }
 
   // MenuCleaner cross-module: read hidden selectors from menu_cleaner_settings
-  function getMcHiddenIds() {
-    try {
-      // Use parent localStorage when in iframe, matching MenuCleaner's storage target
-      var storage = window.frameElement ? window.parent.localStorage : localStorage;
-      const raw = storage.getItem('menu_cleaner_settings');
-      if (!raw) return [];
-      const mc = JSON.parse(raw);
-      const hs = mc.hiddenSelectors || {};
-      var keys = Object.keys(hs).filter(function(k) { return hs[k] === true; });
-      // Also include versions without # prefix for cross-module ID matching
-      var result = keys.slice();
-      for (var i = 0; i < keys.length; i++) {
-        if (keys[i].charAt(0) === '#') result.push(keys[i].substring(1));
-      }
-      return result;
-    } catch(e) { return []; }
-  }
-
   const panelCSS = `
     .magic-panel-wrapper {
       position:fixed; top:0; left:0; width:100%; height:100%;
@@ -116,9 +234,6 @@
     .magic-panel-body {
       flex:1; overflow-y:auto; padding:12px;
     }
-    .magic-panel-grid {
-      display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
-    }
     .magic-panel-resize-handle {
       position:absolute; bottom:0; right:0;
       width:16px; height:16px;
@@ -129,12 +244,16 @@
     }
     .magic-panel-resize-handle:hover { opacity:0.7; }
     .magic-panel-btn {
-      display:flex; flex-direction:column; align-items:center; gap:6px;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
       padding:12px 6px; border-radius:8px;
       border:1px solid var(--SmartThemeBorderColor);
       cursor:pointer; min-height:64px; position:relative;
       background:rgba(255,255,255,0.03); color:var(--SmartThemeBodyColor,#ccc);
     }
+    .magic-panel-grid, .magic-panel-more-grid.expanded {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+    }
+
     .magic-panel-btn:hover {
       background:rgba(255,255,255,0.08);
       border-color:var(--SmartThemeQuoteColor,#5bc0de);
@@ -168,6 +287,19 @@
     .magic-panel-more-grid.expanded {
       display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
     }
+    .magic-panel-scale-bar {
+      display:none; align-items:center; gap:8px;
+      padding:6px 14px; border-bottom:1px solid var(--SmartThemeBorderColor);
+      background:rgba(255,255,255,0.02);
+    }
+    .magic-panel-scale-bar.active { display:flex; }
+    .magic-panel-scale-bar .scale-label { font-size:13px; color:var(--SmartThemeBodyColor,#ccc); cursor:pointer; }
+    .magic-panel-scale-bar .magic-panel-scale-slider {
+      flex:1; height:4px; cursor:pointer; accent-color:var(--SmartThemeQuoteColor,#5bc0de);
+    }
+    .magic-panel-scale-bar .scale-value {
+      font-size:11px; color:var(--SmartThemeBodyColor,#888); min-width:32px; text-align:right;
+    }
     .magic-panel-save-bar {
       display:none; padding:10px; text-align:center;
       border-top:1px solid var(--SmartThemeBorderColor);
@@ -178,6 +310,10 @@
       background:var(--SmartThemeQuoteColor,#5bc0de); color:#fff;
       font-size:13px; cursor:pointer;
     }
+    .magic-panel-fit-btn, .magic-panel-scale-btn {
+      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
+    }
+    .magic-panel-fit-btn:hover, .magic-panel-scale-btn:hover { color:var(--SmartThemeQuoteColor,#5bc0de); }
     .magic-panel-sort-btn {
       cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
     }
@@ -197,39 +333,15 @@
     }
   `;
 
-  const MENU_CONFIGS = [
-    {
-      key: 'extensionsMenu',
-      buttonId: 'extensionsMenuButton',
-      menuId: 'extensionsMenu',
-      selectors: '.list-group-item, #data_bank_wand_container > *, .extension_container > *',
-      skipChildIds: ['extensions-search-container', 'data_bank_wand_container'],
-      skipChildClasses: ['extension_container', 'list-group-item'],
-      defaultIcon: 'fa-solid fa-puzzle-piece',
-    },
-    {
-      key: 'options',
-      buttonId: 'options_button',
-      menuId: 'options',
-      allowHidden: true,
-      defaultIcon: 'fa-solid fa-wand-magic-sparkles',
-      selectors: '.interactable',
-      items: [
-        { selector: '#option_toggle_AN', label: '作者注释', icon: 'fa-solid fa-feather' },
-        { selector: '#option_toggle_CFG', label: 'CFG缩放', icon: 'fa-solid fa-sliders' },
-        { selector: '#option_toggle_logprobs', label: '词符概率', icon: 'fa-solid fa-chart-simple' },
-        { selector: '#option_new_bookmark', label: '保存检查点', icon: 'fa-solid fa-bookmark' },
-        { selector: '#option_convert_to_group', label: '转换为群聊', icon: 'fa-solid fa-user-group' },
-        { selector: '#option_start_new_chat', label: '开始新聊天', icon: 'fa-solid fa-comment-medical' },
-        { selector: '#option_close_chat', label: '关闭聊天', icon: 'fa-solid fa-comment-slash' },
-        { selector: '#option_select_chat', label: '管理聊天文件', icon: 'fa-solid fa-folder-open' },
-        { selector: '#option_delete_mes', label: '删除消息', icon: 'fa-solid fa-trash' },
-        { selector: '#option_regenerate', label: '重新生成', icon: 'fa-solid fa-rotate-right' },
-        { selector: '#option_impersonate', label: 'AI帮答', icon: 'fa-solid fa-masks-theater' },
-        { selector: '#option_continue', label: '继续', icon: 'fa-solid fa-forward' },
-      ],
-    },
-  ];
+  const MENU_CONFIGS = MENU_REGISTRY.filter(function(g) { return g.mp; }).map(function(g) {
+  var icons = { '#option_toggle_AN': 'fa-solid fa-feather', '#option_toggle_CFG': 'fa-solid fa-sliders', '#option_toggle_logprobs': 'fa-solid fa-chart-simple', '#option_new_bookmark': 'fa-solid fa-bookmark', '#option_convert_to_group': 'fa-solid fa-user-group', '#option_start_new_chat': 'fa-solid fa-comment-medical', '#option_close_chat': 'fa-solid fa-comment-slash', '#option_select_chat': 'fa-solid fa-folder-open', '#option_delete_mes': 'fa-solid fa-trash', '#option_regenerate': 'fa-solid fa-rotate-right', '#option_impersonate': 'fa-solid fa-masks-theater', '#option_continue': 'fa-solid fa-forward' };
+  var c = { key: g.id, buttonId: g.buttonId, menuId: g.mp.menuId, defaultIcon: g.mp.defaultIcon, selectors: g.mp.selectors };
+  if (g.mp.allowHidden) c.allowHidden = true;
+  if (g.mp.skipChildIds) c.skipChildIds = g.mp.skipChildIds;
+  if (g.mp.skipChildClasses) c.skipChildClasses = g.mp.skipChildClasses;
+  if (g.items) c.items = g.items.map(function(it) { return { selector: it.selector, label: it.label, icon: icons[it.selector] }; });
+  return c;
+});;
 
   class MagicPanel {
     constructor() {
@@ -237,7 +349,7 @@
       this.editSelection = new Set();
       this.isSorting = false;
       this.sortDragId = null;
-      this.rootDoc = getRootDocument();
+      this.rootDoc = Runtime.getRootDocument();
       this.activeMenu = MENU_CONFIGS[0];
       this.bindRetries = 0;
       this.injectStyles();
@@ -264,15 +376,25 @@
     }
 
     createPanel() {
-      if (!this.rootDoc.querySelector('.magic-panel-wrapper')) {
+      // Remove stale panel to pick up template changes on re-init
+      var oldWrap = this.rootDoc.querySelector('.magic-panel-wrapper');
+      if (oldWrap) oldWrap.remove();
+      {
         const html = `
           <div class="magic-panel-wrapper" role="dialog" aria-label="酒馆菜单管理器">
             <div class="magic-panel">
               <div class="magic-panel-header">
                 <span class="magic-panel-title">酒馆菜单管理器</span>
+                <span class="magic-panel-fit-btn" role="button" aria-label="自适应大小"><i class="fa-solid fa-expand"></i></span>
+                <span class="magic-panel-scale-btn" role="button" aria-label="缩放"><i class="fa-solid fa-text-height"></i></span>
                 <span class="magic-panel-sort-btn" role="button" aria-label="排序"><i class="fa-solid fa-arrow-up-short-wide"></i></span>
                 <span class="magic-panel-edit-btn" role="button" aria-label="编辑模式"><i class="fa-solid fa-pen"></i></span>
                 <span class="magic-panel-settings-btn" role="button" aria-label="设置"><i class="fa-solid fa-cog"></i></span>
+              </div>
+              <div class="magic-panel-scale-bar">
+                <span class="scale-label">Aa</span>
+                <input type="range" class="magic-panel-scale-slider" min="60" max="150" value="100" step="5">
+                <span class="scale-value">100%</span>
               </div>
               <div class="magic-panel-body"><div data-content="tavern"></div></div>
               <div class="magic-panel-resize-handle"></div>
@@ -302,9 +424,8 @@
       }, true);
       this.rootDoc.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && this.wrapper.classList.contains('active')) {
-          // If MenuCleaner popup is also open, let it close first (more specific)
-          var mcPopup = this.rootDoc.getElementById('menu-cleaner-popup');
-          if (mcPopup && mcPopup.style.display !== 'none') return;
+          // Check via Runtime bridge (MC registers at init)
+          if (Runtime.isMenuCleanerPopupOpen && Runtime.isMenuCleanerPopupOpen()) return;
           this.close();
         }
       });
@@ -335,16 +456,26 @@
         this.render();
       });
       this.settingsBtn.addEventListener('click', () => {
-        // Open MenuCleaner's settings popup via its injected button
-        var openBtn = this.rootDoc.getElementById('menu-cleaner-open-popup');
-        if (openBtn) { openBtn.click(); return; }
-        // Fallback: try direct DOM manipulation
-        var mcPopup = this.rootDoc.getElementById('menu-cleaner-popup');
-        var mcBackdrop = this.rootDoc.getElementById('menu-cleaner-backdrop');
-        if (mcPopup && mcBackdrop) {
-          mcBackdrop.style.display = 'block';
-          mcPopup.style.display = 'flex';
-        }
+        // Open MenuCleaner's popup via Runtime bridge (MC registers at init)
+        if (Runtime.openMenuCleanerPopup) { Runtime.openMenuCleanerPopup(); return; }
+      });
+      this.scaleBtn = this.panel.querySelector('.magic-panel-scale-btn');
+      this.scaleBar = this.panel.querySelector('.magic-panel-scale-bar');
+      this.scaleSlider = this.panel.querySelector('.magic-panel-scale-slider');
+      this.scaleSliderVal = this.panel.querySelector('.scale-value');
+      this.scaleBtn.addEventListener('click', () => {
+        this.scaleBar.classList.toggle('active');
+      });
+      this.scaleSlider.addEventListener('input', () => {
+        const pct = parseInt(this.scaleSlider.value);
+        const scale = pct / 100;
+        this.panel.style.setProperty('--content-scale', scale);
+        this.scaleSliderVal.textContent = pct + '%';
+        Store.mp.set(STORAGE_CONTENT_SCALE, scale);
+      });
+      this.fitBtn = this.panel.querySelector('.magic-panel-fit-btn');
+      this.fitBtn.addEventListener('click', () => {
+        this.fitToContent();
       });
       // Reposition panel on window resize
       this.rootDoc.defaultView.addEventListener('resize', () => {
@@ -371,8 +502,52 @@
     }
 
     initScale() {
-      const saved = parseFloat(_mpStore.get(STORAGE_CONTENT_SCALE) || '1');
+      const saved = parseFloat(Store.mp.get(STORAGE_CONTENT_SCALE) || '1');
       this.panel.style.setProperty('--content-scale', saved);
+      // Sync scale bar slider if available
+      if (this.scaleSlider && this.scaleSliderVal) {
+        this.scaleSlider.value = Math.round(saved * 100);
+        this.scaleSliderVal.textContent = Math.round(saved * 100) + '%';
+      }
+    }
+    fitToContent() {
+      // Toggle: if already fitted, reset to default width
+      if (this._fittedSize) {
+        this.panel.style.width = '';
+        this.panel.style.height = '';
+        this._fittedSize = null;
+        Store.mp.set('magic_panel_size_' + this.activeMenu.key, null);
+        this.position();
+        return;
+      }
+      const body = this.panel.querySelector('.magic-panel-body');
+      if (!body) return;
+      var items = body.querySelectorAll('.magic-panel-btn');
+      if (!items.length) return;
+      // Calculate content-bounding dimensions
+      var maxW = 0, maxH = 0, gap = 8, padding = 24, headerH = this.panel.querySelector('.magic-panel-header')?.offsetHeight || 40;
+      items.forEach(function(b) {
+        maxW = Math.max(maxW, b.offsetWidth);
+        maxH = Math.max(maxH, b.offsetHeight);
+      });
+      var cols = 3;
+      var grid = body.querySelector('.magic-panel-grid');
+      if (grid) {
+        var gs = getComputedStyle(grid).gridTemplateColumns || '';
+        cols = Math.max(1, gs.split(' ').length);
+      }
+      var rows = Math.ceil(items.length / cols);
+      var fitW = maxW * cols + gap * (cols - 1) + padding;
+      var fitH = headerH + rows * maxH + gap * (rows - 1) + padding;
+      // Cap at viewport
+      var vw = (this.rootDoc.defaultView || window).innerWidth;
+      var vh = (this.rootDoc.defaultView || window).innerHeight;
+      fitW = Math.min(fitW, vw - 40);
+      fitH = Math.min(fitH, vh - 60);
+      this.panel.style.width = fitW + 'px';
+      this.panel.style.height = fitH + 'px';
+      this._fittedSize = true;
+      this.position();
     }
 
     blockOriginalMenus() {
@@ -492,7 +667,7 @@
         if (!text) return;
         const id = el.id || candidate.id || itemConfig?.selector || text;
         // Skip items hidden by MenuCleaner (cross-module awareness)
-        var mcHidden = getMcHiddenIds();
+        var mcHidden = Runtime.getMcHiddenIds();
         if (mcHidden.indexOf(id) !== -1) return;
         if (itemConfig && itemConfig.selector && mcHidden.indexOf(itemConfig.selector) !== -1) return;
         // Id-based dedup: only skip if id is from a structured source
@@ -528,7 +703,7 @@
       }
       // Apply stored reorder from dedicated localStorage key
       try {
-        var _orderArr = _mpStore.get('magic_panel_order_' + config.key);
+        var _orderArr = Store.mp.get('magic_panel_order_' + config.key);
         if (_orderArr && Array.isArray(_orderArr)) {
           if (_orderArr && _orderArr.length > 0) {
             var _orderMap = {};
@@ -549,7 +724,7 @@
 
     render() {
       const buttons = this.collectButtons();
-      const mcHidden = getMcHiddenIds();
+      const mcHidden = Runtime.getMcHiddenIds();
       const mpHidden = getHiddenButtons();
       // Merge: items hidden by MenuCleaner are excluded entirely;
       // items hidden by MagicPanel edit mode go to "more" section.
@@ -631,7 +806,7 @@
       this.initDragHandlers();
       this.initResizeHandler();
       try {
-        var _sz = _mpStore.get('magic_panel_size');
+        var _sz = Store.mp.get('magic_panel_size_' + this.activeMenu.key);
         if (_sz && _sz.w) { this.panel.style.width = _sz.w; this.panel.style.height = _sz.h || ''; }
       } catch(e) {}
 
@@ -655,7 +830,7 @@
         var onUp = function() {
           self.rootDoc.removeEventListener('mousemove', onMove);
           self.rootDoc.removeEventListener('mouseup', onUp);
-          try { _mpStore.set('magic_panel_size', { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
+          try { Store.mp.set('magic_panel_size_' + self.activeMenu.key, { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
         };
         self.rootDoc.addEventListener('mousemove', onMove);
         self.rootDoc.addEventListener('mouseup', onUp);
@@ -674,7 +849,7 @@
         var onEnd = function() {
           self.rootDoc.removeEventListener('touchmove', onMove);
           self.rootDoc.removeEventListener('touchend', onEnd);
-          try { _mpStore.set('magic_panel_size', { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
+          try { Store.mp.set('magic_panel_size_' + self.activeMenu.key, { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
         };
         self.rootDoc.addEventListener('touchmove', onMove, { passive: false });
         self.rootDoc.addEventListener('touchend', onEnd);
@@ -779,7 +954,7 @@
         if (_bid) _order.push(_bid);
       }
       try {
-        _mpStore.set('magic_panel_order_' + this.activeMenu.key, _order);
+        Store.mp.set('magic_panel_order_' + this.activeMenu.key, _order);
       } catch(_e) { console.warn('[MagicPanel] saveSortOrder failed', _e); }
       // Exit sort mode
       this.exitSortMode();
@@ -791,7 +966,7 @@
   }
 
   function waitForButton() {
-    const doc = getRootDocument();
+    const doc = Runtime.getRootDocument();
     if (MENU_CONFIGS.some(config => doc.getElementById(config.buttonId))) {
       new MagicPanel();
     } else {
@@ -827,103 +1002,12 @@
   const nativeHomes = new Map();
 
   // ── Hardcoded native elements ─────────────────────────────────
-  const PANEL_GROUPS = [
-    {
-      id: 'options',
-      name: '左下菜单',
-      buttonId: '#options_button',
-      items: [
-        { selector: '#option_toggle_AN',           label: '作者注释' },
-        { selector: '#option_toggle_CFG',          label: 'CFG缩放' },
-        { selector: '#option_toggle_logprobs',     label: '词符概率' },
-        { selector: '#option_new_bookmark',        label: '保存检查点' },
-        { selector: '#option_convert_to_group',    label: '转换为群聊' },
-        { selector: '#option_start_new_chat',      label: '开始新聊天' },
-        { selector: '#option_close_chat',          label: '关闭聊天' },
-        { selector: '#option_select_chat',         label: '管理聊天文件' },
-        { selector: '#option_delete_mes',          label: '删除消息' },
-        { selector: '#option_regenerate',          label: '重新生成' },
-        { selector: '#option_impersonate',         label: 'AI帮答' },
-        { selector: '#option_continue',            label: '继续' }
-      ],
-      discovery: {
-        containers: ['#options'],
-        itemMatch: '.interactable',
-        labelIn: 'span'
-      }
-    },
-    {
-      id: 'extensionsMenu',
-      name: '魔棒',
-      buttonId: '#extensionsMenuButton',
-      items: [
-        { selector: '#manageAttachments',          label: '打开数据库' },
-        { selector: '#attachFile',                 label: '附加文件' },
-        { selector: '#sd_gen',                     label: '生成图片' },
-        { selector: '#send_picture',               label: 'Generate Caption' },
-        { selector: '#ttsExtensionNarrateAll',     label: 'Narrate All Chat' },
-        { selector: '#token_counter',              label: '词符计数器' },
-        { selector: '#translate_chat',             label: '翻译聊天' },
-        { selector: '#translate_input_message',    label: '翻译输入' }
-      ],
-      discovery: {
-        containers: ['#extensionsMenu'],
-        itemMatch: '.list-group-item',
-        labelIn: 'span',
-        alsoMatchChildren: true
-      }
-    },
-    {
-      id: 'extensionsSettings',
-      name: '扩展菜单',
-      buttonId: '#extensions-settings-button',
-      items: [
-        { selector: '#assets_container',           label: '下载扩展和资源菜单' },
-        { selector: '#expressions_container',      label: '角色表情' },
-        { selector: '#sd_container',               label: '图像生成' },
-        { selector: '#tts_container',              label: 'TTS' },
-        { selector: '#qr--settings',               label: '快速回复' },
-        { selector: '#translation_container',      label: '聊天翻译' },
-        { selector: '#caption_container',          label: '图像描述' },
-        { selector: '#summarize_container',        label: '总结' },
-        { selector: '#regex_container',            label: '正则' },
-        { selector: '#vectors_container',          label: '向量存储' }
-      ],
-      discovery: {
-        containers: ['#extensions_settings', '#extensions_settings2'],
-        hasHeader: '.inline-drawer-header',
-        labelInHeader: 'b, [data-i18n]',
-        exclude: ['#qr_container', '#agent_system_container', '#tauritavern_version_container']
-      }
-    },
-    {
-      id: 'topSettings',
-      name: '顶部导航栏',
-      items: [
-        { selector: '#ai-config-button',           label: '预设' },
-        { selector: '#sys-settings-button',        label: '插头' },
-        { selector: '#advanced-formatting-button', label: 'AI回复格式化' },
-        { selector: '#WI-SP-button',               label: '世界书' },
-        { selector: '#user-settings-button',       label: '用户设置' },
-        { selector: '#backgrounds-button',         label: '背景' },
-        { selector: '#extensions-settings-button', label: '扩展' },
-        { selector: '#persona-management-button',  label: 'USER设置' },
-        { selector: '#rightNavHolder',             label: '角色卡' }
-      ]
-    },
-    {
-      id: 'presetSettings',
-      name: '预设菜单',
-      buttonId: '#ai-config-button',
-      items: [
-        { selector: '#range_block_openai > div:nth-child(1), #range_block_openai > div:nth-child(2), #range_block_openai > div:nth-child(3), #range_block_openai > div:nth-child(4)', label: '上下文长度及备选回复' },
-        { selector: '#range_block_openai > div:nth-child(11), #range_block_openai > div:nth-child(12), #range_block_openai > div:nth-child(13), #range_block_openai > div:nth-child(14), #range_block_openai > div:nth-child(15), #range_block_openai > div:nth-child(16), #range_block_openai > div:nth-child(17), #range_block_openai > div:nth-child(18)', label: '可调参数' },
-        { selector: '#range_block_openai > div.inline-drawer.m-t-1.wide100p, #range_block_openai > div:nth-child(20), #range_block_openai > div:nth-child(21), #openai_settings > div:nth-child(1) > div:nth-child(1), #openai_settings > div:nth-child(1) > div.inline-drawer.wide100p.flexFlowColumn.marginBot10', label: '提示词格式相关' },
-        { selector: '#openai_settings > div:nth-child(1) > div:nth-child(3), #openai_settings > div:nth-child(1) > div:nth-child(4), #openai_settings > div:nth-child(1) > div:nth-child(5), #openai_settings > div:nth-child(1) > div:nth-child(6), #openai_settings > div:nth-child(1) > div:nth-child(7), #openai_settings > div:nth-child(1) > div:nth-child(8), #openai_settings > div:nth-child(1) > div:nth-child(9), #openai_settings > div:nth-child(1) > div:nth-child(10), #openai_settings > div:nth-child(1) > div:nth-child(11), #openai_settings > div:nth-child(1) > div:nth-child(12), #openai_settings > div:nth-child(1) > div:nth-child(13), #openai_settings > div.range-block.m-t-1', label: '复选框和下拉菜单' },
-        { selector: '#openai_settings > div.range-block.m-b-1', label: '预设条目' }
-      ]
-    }
-  ];
+  const PANEL_GROUPS = MENU_REGISTRY.map(function(g) {
+  var c = { id: g.id, name: g.mc.name, items: g.items ? g.items.slice() : [] };
+  if (g.buttonId) c.buttonId = '#' + g.buttonId;
+  if (g.mc.discovery) c.discovery = g.mc.discovery;
+  return c;
+});;
 
   // Groups that support reordering
   const REORDER_GROUP_IDS = ['extensionsSettings'];
@@ -947,20 +1031,27 @@
 
   let settings = {};
 
+
+  // ── Cached DOM helpers ──
+  function getExtPanel() { return doc.getElementById("menu-cleaner-ext-panel"); }
+  function getPopup() { return doc.getElementById("menu-cleaner-popup"); }
+  function getPopupBody() { return doc.getElementById("menu-cleaner-popup-body"); }
+  function getRmBlock() { return doc.getElementById("rm_extensions_block"); }
+
+
   function loadSettings() {
     try {
-      const raw = win.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw);
+      const saved = Store.mc.getAll();
+      if (saved && typeof saved === 'object' && Object.keys(saved).length) {
         settings = Object.assign({}, defaultSettings, saved);
       } else {
         settings = Object.assign({}, defaultSettings);
       }
 
       // MagicPanel compatibility: never hide MagicPanel's own UI elements
-      var MAGIC_COMPAT_VISIBLE_SELECTORS = ['#hide-helper-wand-button', '#menu-cleaner-wand-container', '.magic-panel-wrapper', '.magic-panel-btn'];
-      for (var mv = 0; mv < MAGIC_COMPAT_VISIBLE_SELECTORS.length; mv++) {
-        if (settings.hiddenSelectors[MAGIC_COMPAT_VISIBLE_SELECTORS[mv]] === true) delete settings.hiddenSelectors[MAGIC_COMPAT_VISIBLE_SELECTORS[mv]];
+      // Runtime.MP_VISIBLE_SELECTORS merged into Runtime.MP_VISIBLE_SELECTORS
+      for (var mv = 0; mv < Runtime.MP_VISIBLE_SELECTORS.length; mv++) {
+        if (settings.hiddenSelectors[Runtime.MP_VISIBLE_SELECTORS[mv]] === true) delete settings.hiddenSelectors[Runtime.MP_VISIBLE_SELECTORS[mv]];
       }
 
       // Selectors injected by this plugin — don't clean them up even if not yet in DOM
@@ -984,13 +1075,7 @@
     }
   }
 
-  function saveSettings() {
-    try {
-      win.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    } catch (e) {
-      console.warn('[酒馆菜单管理器] 保存设置失败', e);
-    }
-  }
+  function saveSettings() { Store.mc.setAll(settings); }
 
   function rememberNativeHome(el) {
     if (!el || !el.parentNode || nativeHomes.has(el)) return;
@@ -1981,7 +2066,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Extensions panel ────────────────────────────────────────────
   function createExtensionsPanelDOM() {
-    if (doc.getElementById('menu-cleaner-ext-panel')) return;
+    if (getExtPanel()) return;
 
     var html =
       '<div id="menu-cleaner-ext-panel" class="drawer-content menu-cleaner-ext-panel">' +
@@ -2042,14 +2127,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   function syncPanelZIndex() {
 
 
-    var panel = doc.getElementById('menu-cleaner-ext-panel');
+    var panel = getExtPanel();
     if (!panel) return;
     // Inherit z-index from the native drawer-content that our panel replaces.
     // Some themes set aggressive z-index values; matching the native drawer
     // ensures our panel never ends up underneath themed elements.
     var sources = [
       doc.querySelector('#extensions-settings-button > .drawer-content'),
-      doc.getElementById('rm_extensions_block'),
+      getRmBlock(),
       doc.getElementById('extensions_settings')
     ];
     for (var i = 0; i < sources.length; i++) {
@@ -2062,11 +2147,11 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function syncPanelTheme() {
-    var panel = doc.getElementById('menu-cleaner-ext-panel');
+    var panel = getExtPanel();
     if (!panel) return;
 
     var sources = [
-      doc.getElementById('rm_extensions_block'),
+      getRmBlock(),
       doc.querySelector('#extensions-settings-button > .drawer-content'),
       doc.getElementById('extensions_settings'),
       doc.body
@@ -2103,10 +2188,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   function toggleExtensionsPanel() {
     extPanelVisible = !extPanelVisible;
-    var panel = doc.getElementById('menu-cleaner-ext-panel');
+    var panel = getExtPanel();
     if (!panel) {
       createExtensionsPanelDOM();
-      panel = doc.getElementById('menu-cleaner-ext-panel');
+      panel = getExtPanel();
       if (!panel) return;
     }
 
@@ -2133,7 +2218,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function positionExtensionsPanel() {
-    var panel = doc.getElementById('menu-cleaner-ext-panel');
+    var panel = getExtPanel();
     if (!panel) return;
     panel.style.maxHeight = '80vh';
     panel.style.overflow = 'auto';
@@ -2164,14 +2249,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     if (topbar) {
       var topbarNodes = topbar.querySelectorAll('#extensions_details, #third_party_extension_button, .checkbox_label.flexNoGap');
       for (var ti = 0; ti < topbarNodes.length; ti++) {
-        restoreRememberedNode(topbarNodes[ti], doc.getElementById('rm_extensions_block'));
+        restoreRememberedNode(topbarNodes[ti], getRmBlock());
       }
     }
 
     var nativeCol1 = doc.getElementById('extensions_settings');
     var nativeCol2 = doc.getElementById('extensions_settings2');
-    if (nativeCol1) restoreRememberedNode(nativeCol1, doc.getElementById('rm_extensions_block'));
-    if (nativeCol2) restoreRememberedNode(nativeCol2, doc.getElementById('rm_extensions_block'));
+    if (nativeCol1) restoreRememberedNode(nativeCol1, getRmBlock());
+    if (nativeCol2) restoreRememberedNode(nativeCol2, getRmBlock());
   }
 
   // ── UI: Entry in extensionsMenu ─────────────────────────────────
@@ -2227,7 +2312,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         applyNativeReorder('extensionsSettings');
       } else {
         clearAllHides();
-        var panel = doc.getElementById('menu-cleaner-ext-panel');
+        var panel = getExtPanel();
         if (panel) panel.style.display = 'none';
         extPanelVisible = false;
         returnElementsToNative();
@@ -2241,7 +2326,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Popup ───────────────────────────────────────────────────────
   function createPopupDOM() {
-    if (doc.getElementById('menu-cleaner-popup')) return;
+    if (getPopup()) return;
 
     var html =
       '<div id="menu-cleaner-backdrop" class="menu-cleaner-backdrop"></div>' +
@@ -2279,7 +2364,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     // Refresh discovery cache so newly injected extension buttons are visible
     refreshDiscoveryCache();
     doc.getElementById('menu-cleaner-backdrop').style.display = 'block';
-    doc.getElementById('menu-cleaner-popup').style.display = 'flex';
+    getPopup().style.display = 'flex';
     showSettingsPanel = false;
     updatePopupView();
     refreshPopup();
@@ -2300,7 +2385,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     var ghosts = doc.querySelectorAll('.menu-cleaner-ghost');
     for (var _g = 0; _g < ghosts.length; _g++) ghosts[_g].remove();
     var backdrop = doc.getElementById('menu-cleaner-backdrop');
-    var popup = doc.getElementById('menu-cleaner-popup');
+    var popup = getPopup();
     if (backdrop) backdrop.style.display = 'none';
     if (popup) popup.style.display = 'none';
     showSettingsPanel = false;
@@ -2367,7 +2452,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Settings panel view ─────────────────────────────────────────
   function renderSettingsView() {
-    var body = doc.getElementById('menu-cleaner-popup-body');
+    var body = getPopupBody();
     if (!body) return;
 
     var html =
@@ -2431,7 +2516,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Reorder view ────────────────────────────────────────────────
   function renderReorderView() {
-    var body = doc.getElementById('menu-cleaner-popup-body');
+    var body = getPopupBody();
     if (!body) return;
 
     var expanded = new Set();
@@ -2455,12 +2540,12 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       var isDualCol = group.id === 'extensionsSettings' && settings.columnMode !== 'single';
 
       html += '<div class="menu-cleaner-category">';
-      html += '<div class="menu-cleaner-category-header" data-group="' + escHtml(group.id) + '">' +
+      html += '<div class="menu-cleaner-category-header" data-group="' + Runtime.escHtml(group.id) + '">' +
                 '<span class="menu-cleaner-category-arrow">' + (isExpanded ? '▼' : '▶') + '</span>' +
-                '<strong>' + escHtml(group.name) + '</strong>' +
+                '<strong>' + Runtime.escHtml(group.name) + '</strong>' +
                 '<span class="menu-cleaner-category-count">' + items.length + ' 项</span>' +
               '</div>';
-      html += '<div class="menu-cleaner-category-body' + (isExpanded ? '' : ' collapsed') + '" data-group="' + escHtml(group.id) + '">';
+      html += '<div class="menu-cleaner-category-body' + (isExpanded ? '' : ' collapsed') + '" data-group="' + Runtime.escHtml(group.id) + '">';
 
       if (isDualCol) {
         var flatIndexMap = {};
@@ -2519,9 +2604,9 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function buildReorderItemHTML(item, groupId, index, colIndex) {
-    return '<div class="menu-cleaner-reorder-item" data-selector="' + escHtml(item.selector) + '" data-group="' + groupId + '" data-index="' + index + '" data-column="' + colIndex + '">' +
+    return '<div class="menu-cleaner-reorder-item" data-selector="' + Runtime.escHtml(item.selector) + '" data-group="' + groupId + '" data-index="' + index + '" data-column="' + colIndex + '">' +
              '<span class="menu-cleaner-drag-handle" title="拖动排序">⋮⋮</span>' +
-             '<span title="' + escHtml(item.selector) + '">' + escHtml(item.label) + '</span>' +
+             '<span title="' + Runtime.escHtml(item.selector) + '">' + Runtime.escHtml(item.label) + '</span>' +
            '</div>';
   }
 
@@ -2822,7 +2907,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Popup positioning ───────────────────────────────────────────
   function positionPopup() {
-    var popup = doc.getElementById('menu-cleaner-popup');
+    var popup = getPopup();
     if (!popup) return;
     var vh = win.innerHeight;
     var vw = win.innerWidth;
@@ -2855,8 +2940,19 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     renderHideView();
   }
 
-  function renderHideView() {
-    var body = doc.getElementById('menu-cleaner-popup-body');
+  
+  function buildHideItemHTML(item, isHidden, isDiscovered) {
+    var cls = 'menu-cleaner-item' + (isDiscovered ? ' menu-cleaner-item-discovered' : '');
+    return '<div class="' + cls + '" data-selector="' + Runtime.escHtml(item.selector) + '">' +
+      '<span title="' + Runtime.escHtml(item.selector) + '">' + Runtime.escHtml(item.label) + '</span>' +
+      '<label class="menu-cleaner-toggle">' +
+      '<input type="checkbox" class="menu-cleaner-checkbox" data-selector="' + Runtime.escHtml(item.selector) + '"' + (isHidden ? '' : ' checked') + '>' +
+      '<span class="menu-cleaner-slider"></span>' +
+      '</label>' +
+      '</div>';
+  }
+function renderHideView() {
+    var body = getPopupBody();
     if (!body) return;
 
     // Save expanded category state before rebuilding
@@ -2878,23 +2974,17 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       var totalCount = group.items.length + cached.length;
 
       html += '<div class="menu-cleaner-category">';
-      html += '<div class="menu-cleaner-category-header" data-group="' + escHtml(group.id) + '">' +
+      html += '<div class="menu-cleaner-category-header" data-group="' + Runtime.escHtml(group.id) + '">' +
                 '<span class="menu-cleaner-category-arrow">▶</span>' +
-                '<strong>' + escHtml(group.name) + '</strong>' +
+                '<strong>' + Runtime.escHtml(group.name) + '</strong>' +
                 '<span class="menu-cleaner-category-count">' + totalCount + ' 项</span>' +
               '</div>';
-      html += '<div class="menu-cleaner-category-body collapsed" data-group="' + escHtml(group.id) + '">';
+      html += '<div class="menu-cleaner-category-body collapsed" data-group="' + Runtime.escHtml(group.id) + '">';
 
       for (var i = 0; i < group.items.length; i++) {
         var item = group.items[i];
         var isHidden = settings.hiddenSelectors[item.selector] === true;
-        html += '<div class="menu-cleaner-item" data-selector="' + escHtml(item.selector) + '">' +
-                  '<span title="' + escHtml(item.selector) + '">' + escHtml(item.label) + '</span>' +
-                  '<label class="menu-cleaner-toggle">' +
-                    '<input type="checkbox" class="menu-cleaner-checkbox" data-selector="' + escHtml(item.selector) + '"' + (isHidden ? '' : ' checked') + '>' +
-                    '<span class="menu-cleaner-slider"></span>' +
-                  '</label>' +
-                '</div>';
+        html += buildHideItemHTML(item, isHidden, false);
       }
 
       if (cached.length > 0) {
@@ -2902,13 +2992,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         for (var ci = 0; ci < cached.length; ci++) {
           var citem = cached[ci];
           var cHidden = settings.hiddenSelectors[citem.selector] === true;
-          html += '<div class="menu-cleaner-item menu-cleaner-item-discovered" data-selector="' + escHtml(citem.selector) + '">' +
-                    '<span title="' + escHtml(citem.selector) + '">' + escHtml(citem.label) + '</span>' +
-                    '<label class="menu-cleaner-toggle">' +
-                      '<input type="checkbox" class="menu-cleaner-checkbox" data-selector="' + escHtml(citem.selector) + '"' + (cHidden ? '' : ' checked') + '>' +
-                      '<span class="menu-cleaner-slider"></span>' +
-                    '</label>' +
-                  '</div>';
+          html += buildHideItemHTML(citem, cHidden, true);
         }
       }
 
@@ -2957,12 +3041,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     }
   }
 
-  var _escDiv = null;
-  function escHtml(str) {
-    if (!_escDiv) _escDiv = doc.createElement('div');
-    _escDiv.textContent = str;
-    return _escDiv.innerHTML;
-  }
 
   // ── Reset ───────────────────────────────────────────────────────
   function resetAllReorders() {
@@ -3047,7 +3125,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   function setupKeyboard() {
     doc.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
-        var popup = doc.getElementById('menu-cleaner-popup');
+        var popup = getPopup();
         if (popup && popup.style.display !== 'none') {
           closePopup();
           return;
@@ -3059,7 +3137,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     });
 
     win.addEventListener('resize', function () {
-      var popup = doc.getElementById('menu-cleaner-popup');
+      var popup = getPopup();
       if (popup && popup.style.display !== 'none') {
         positionPopup();
       }
@@ -3095,10 +3173,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         // /menucleanerdisable — disable the extension
         "registerSlashCommand('menucleanerdisable', function () {\n" +
         "  try {\n" +
-        "    var raw = localStorage.getItem('menu_cleaner_settings');\n" +
-        "    var settings = raw ? JSON.parse(raw) : {};\n" +
-        "    settings.enabled = false;\n" +
-        "    localStorage.setItem('menu_cleaner_settings', JSON.stringify(settings));\n" +
+        "    if (window.__mcDisable) { window.__mcDisable(); }\n" +
+        "    else { console.error('[MenuCleaner] __mcDisable not available'); }\n" +
         "    // Remove injected style elements\n" +
         "    var ids = ['menu-cleaner-styles', 'menu-cleaner-hides'];\n" +
         "    ids.forEach(function(id) { var el = document.getElementById(id); if (el) el.remove(); });\n" +
@@ -3216,7 +3292,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         if (REORDER_GROUP_IDS[rg2] !== 'extensionsSettings') applyNativeReorder(REORDER_GROUP_IDS[rg2]);
       }
     }, 3000);
-  }
+  
+  Runtime.openMenuCleanerPopup = openPopup;
+  Runtime.isMenuCleanerPopupOpen = function() { var p = document.getElementById('menu-cleaner-popup'); return p && p.style.display !== 'none'; };
+}
 
   // Start when DOM is ready (parent page's DOM)
   if (doc.readyState === 'loading') {
@@ -3224,4 +3303,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   } else {
     init();
   }
+
+  try { window.__mcDisable = function() { var s = Store.mc.getAll() || {}; s.enabled = false; Store.mc.setAll(s); }; } catch(e) {}
 })();
