@@ -1,12 +1,4 @@
-// ==酒馆菜单管理器：魔法面板模块（左下    }
-    if (group.id === 'extensionsSettings') {
-      html += '<div class="menu-cleaner-reorder-entry" data-group="extensionsSettings">' +
-                '<div class="menu-cleaner-reorder-trigger" style="color:var(--SmartThemeQuoteColor,#5bc0de);font-size:0.85em;cursor:pointer;display:block;padding:6px 0;text-align:center;border-top:1px solid var(--SmartThemeBorderColor,#333);margin-top:4px;">' +
-                  '⇅ 扩展菜单重排序' +
-                '</div>' +
-              '</div>';
-    }
-  弹出 · 缩放）==
+// ==酒馆菜单管理器：魔法面板模块（左下弹出 · 缩放）==
 // 模块职责：替换酒馆魔法棒按钮(#extensionsMenuButton)和左下选项按钮(#options_button)
 // 点击后在按钮左下方弹出面板，支持编辑模式将按钮移入"更多"折叠区
 // 图标与字体大小跟随面板缩放，设置自动保存
@@ -2814,6 +2806,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       }
 
       html += '</div></div>';
+    if (group.id === 'extensionsSettings') {
+      html += '<div class="menu-cleaner-reorder-entry" data-group="extensionsSettings">' +
+                '<div class="menu-cleaner-reorder-trigger" style="color:var(--SmartThemeQuoteColor,#5bc0de);font-size:0.85em;cursor:pointer;display:block;padding:6px 0;text-align:center;border-top:1px solid var(--SmartThemeBorderColor,#333);margin-top:4px;">' +
+                  '\u21C5 \u6269\u5C55\u83DC\u5355\u91CD\u6392\u5E8F' +
+                '</div>' +
+              '</div>';
+    }
+
     }
 
     body.innerHTML = html;
@@ -2855,12 +2855,12 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         if (!_items || _items.length === 0) return;
         var _body = doc.getElementById('menu-cleaner-popup-body');
         if (!_body) return;
-        var _h = '<div class="menu-cleaner-reorder-back" style="padding:8px 16px;cursor:pointer;font-size:0.85em;color:var(--SmartThemeQuoteColor,#5bc0de);">← 返回隐藏元素</div>';
-        _h += '<div class="menu-cleaner-category"><div class="menu-cleaner-category-header"><strong>扩展菜单重排序</strong><span class="menu-cleaner-category-count">' + _items.length + ' 项</span></div>';
+        var _h = '<div class="menu-cleaner-reorder-back" style="padding:8px 16px;cursor:pointer;font-size:0.85em;color:var(--SmartThemeQuoteColor,#5bc0de);">\u2190 \u8FD4\u56DE\u9690\u85CF\u5143\u7D20</div>';
+        _h += '<div class="menu-cleaner-category"><div class="menu-cleaner-category-header"><strong>\u6269\u5C55\u83DC\u5355\u91CD\u6392\u5E8F</strong><span class="menu-cleaner-category-count">' + _items.length + ' \u9879</span></div>';
         _h += '<div class="menu-cleaner-category-body">';
         for (var _ri = 0; _ri < _items.length; _ri++) {
           _h += '<div class="menu-cleaner-reorder-item" data-selector="' + escHtml(_items[_ri].selector) + '" data-group="' + _gid + '" data-index="' + _ri + '" data-column="-1">';
-          _h += '<span class="menu-cleaner-drag-handle" title="拖动排序">⋮⋮</span><span title="' + escHtml(_items[_ri].selector) + '">' + escHtml(_items[_ri].label) + '</span></div>';
+          _h += '<span class="menu-cleaner-drag-handle" title="\u62D6\u52A8\u6392\u5E8F">\u22EE\u22EE</span><span title="' + escHtml(_items[_ri].selector) + '">' + escHtml(_items[_ri].label) + '</span></div>';
         }
         _h += '</div></div>';
         _body.innerHTML = _h;
