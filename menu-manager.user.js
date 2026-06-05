@@ -119,6 +119,15 @@
     .magic-panel-grid {
       display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
     }
+    .magic-panel-resize-handle {
+      position:absolute; bottom:0; right:0;
+      width:16px; height:16px;
+      cursor:se-resize; opacity:0.3;
+      border-right:3px solid var(--SmartThemeBodyColor,#ccc);
+      border-bottom:3px solid var(--SmartThemeBodyColor,#ccc);
+      border-radius:0 0 4px 0; z-index:2;
+    }
+    .magic-panel-resize-handle:hover { opacity:0.7; }
     .magic-panel-btn {
       display:flex; flex-direction:column; align-items:center; gap:6px;
       padding:12px 6px; border-radius:8px;
@@ -265,6 +274,7 @@
                 <span class="magic-panel-settings-btn" role="button" aria-label="设置"><i class="fa-solid fa-cog"></i></span>
               </div>
               <div class="magic-panel-body"><div data-content="tavern"></div></div>
+              <div class="magic-panel-resize-handle"></div>
               <div class="magic-panel-save-bar"><button class="magic-panel-save-btn">保存</button></div>
             </div>
           </div>`;
@@ -618,8 +628,56 @@
       });
 
       this.initDragHandlers();
+      this.initResizeHandler();
+      try {
+        var _sz = _mpStore.get('magic_panel_size');
+        if (_sz && _sz.w) { this.panel.style.width = _sz.w; this.panel.style.height = _sz.h || ''; }
+      } catch(e) {}
 
       requestAnimationFrame(() => this.position());
+    }
+
+    initResizeHandler() {
+      var rh = this.panel.querySelector('.magic-panel-resize-handle');
+      if (!rh || this.__resizeInited) return;
+      this.__resizeInited = true;
+      var sw = 0, sh = 0, sx = 0, sy = 0;
+      var self = this;
+      rh.addEventListener('mousedown', function(e) {
+        e.stopPropagation(); e.preventDefault();
+        sw = self.panel.offsetWidth; sh = self.panel.offsetHeight;
+        sx = e.clientX; sy = e.clientY;
+        var onMove = function(ev) {
+          self.panel.style.width = Math.max(200, Math.min(600, sw + (ev.clientX - sx))) + 'px';
+          self.panel.style.height = Math.max(200, Math.min(800, sh + (ev.clientY - sy))) + 'px';
+        };
+        var onUp = function() {
+          self.rootDoc.removeEventListener('mousemove', onMove);
+          self.rootDoc.removeEventListener('mouseup', onUp);
+          try { _mpStore.set('magic_panel_size', { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
+        };
+        self.rootDoc.addEventListener('mousemove', onMove);
+        self.rootDoc.addEventListener('mouseup', onUp);
+      });
+      rh.addEventListener('touchstart', function(e) {
+        if (e.touches.length !== 1) return; e.preventDefault();
+        var t = e.touches[0];
+        sw = self.panel.offsetWidth; sh = self.panel.offsetHeight;
+        sx = t.clientX; sy = t.clientY;
+        var onMove = function(ev) {
+          var touch = ev.touches[0];
+          self.panel.style.width = Math.max(200, Math.min(600, sw + (touch.clientX - sx))) + 'px';
+          self.panel.style.height = Math.max(200, Math.min(800, sh + (touch.clientY - sy))) + 'px';
+          ev.preventDefault();
+        };
+        var onEnd = function() {
+          self.rootDoc.removeEventListener('touchmove', onMove);
+          self.rootDoc.removeEventListener('touchend', onEnd);
+          try { _mpStore.set('magic_panel_size', { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
+        };
+        self.rootDoc.addEventListener('touchmove', onMove, { passive: false });
+        self.rootDoc.addEventListener('touchend', onEnd);
+      }, { passive: false });
     }
 
     initDragHandlers() {
@@ -2223,6 +2281,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function closePopup() {
+    var ghosts = doc.querySelectorAll('.menu-cleaner-ghost');
+    for (var _g = 0; _g < ghosts.length; _g++) ghosts[_g].remove();
     var backdrop = doc.getElementById('menu-cleaner-backdrop');
     var popup = doc.getElementById('menu-cleaner-popup');
     if (backdrop) backdrop.style.display = 'none';
@@ -2552,7 +2612,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         this.setPointerCapture(e.pointerId);
 
         touchGhost = this.cloneNode(true);
-        touchGhost.style.position = 'fixed';
+        touchGhost.className = "menu-cleaner-ghost";
+        touchGhost.style.position = "fixed";
         touchGhost.style.zIndex = '100001';
         touchGhost.style.pointerEvents = 'none';
         touchGhost.style.opacity = '0.85';
