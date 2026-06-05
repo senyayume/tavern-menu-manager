@@ -38,6 +38,7 @@
   const PANEL_WIDTH = 320;   // 默认 320，改大面板变宽，改小变窄
 
   const STORAGE_HIDDEN = 'magic_panel_hidden_buttons';
+const STORAGE_PINNED = 'magic_panel_pinned_buttons';
   const STORAGE_CONTENT_SCALE = 'magic_content_scale';
 
   function getRootDocument() {
@@ -51,6 +52,9 @@
 
   function getHiddenButtons() { try { return _mpStore.get(STORAGE_HIDDEN) || []; } catch(e) { return []; } }
   function saveHiddenButtons(list) { try { _mpStore.set(STORAGE_HIDDEN, list); } catch(e) {} }
+  function getPinnedButtons() { try { return _mpStore.get(STORAGE_PINNED) || []; } catch(e) { return []; } }
+  function savePinnedButtons(list) { try { _mpStore.set(STORAGE_PINNED, list); } catch(e) {} }
+  function togglePinButton(id) { var p = getPinnedButtons(); var i = p.indexOf(id); if (i>=0) { p.splice(i,1); } else { p.push(id); } savePinnedButtons(p); return p; }
 
   // MenuCleaner cross-module: read hidden selectors from menu_cleaner_settings
   function getMcHiddenIds() {
@@ -178,6 +182,18 @@
       background:var(--SmartThemeQuoteColor,#5bc0de); color:#fff;
       font-size:13px; cursor:pointer;
     }
+    .magic-panel-opacity-slider {
+      display:none; width:80px; cursor:pointer;
+      accent-color:var(--SmartThemeQuoteColor,#5bc0de);
+    }
+    .magic-panel.is-sorting .magic-panel-opacity-slider { display:none; }
+    .magic-panel-search {
+      display:none; width:100px; font-size:12px; padding:2px 6px;
+      border:1px solid var(--SmartThemeBorderColor,#555);
+      border-radius:4px; background:transparent; color:var(--SmartThemeBodyColor,#ccc);
+      margin:0 4px;
+    }
+    .magic-panel.is-sorting .magic-panel-search { display:none; }
     .magic-panel-sort-btn {
       cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
     }
@@ -242,7 +258,17 @@
       this.injectStyles();
       this.createPanel();
       this.bindEvents();
-      this.initScale();
+this.initScale();
+      // First-time guide
+      try {
+        if (!_mpStore.get('magic_panel_guide_shown')) {
+          var _g = this.rootDoc.createElement('div');
+          _g.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:100002;background:var(--SmartThemeBlurTintColor,#222);border:1px solid var(--SmartThemeBorderColor,#555);border-radius:12px;padding:24px;max-width:320px;text-align:center;color:var(--SmartThemeBodyColor,#ccc);font-size:14px;box-shadow:0 8px 32px rgba(0,0,0,0.5);';
+          _g.innerHTML = '<div style="font-size:32px;margin-bottom:8px;">\uD83C\uDF7A</div><div style="font-weight:bold;font-size:16px;margin-bottom:8px;">\u9152\u9986\u83DC\u5355\u7BA1\u7406\u5668</div><div style="margin-bottom:12px;">\u70B9\u51FB <b>\u270F\uFE0F</b> \u7F16\u8F91\u9690\u85CF\u6309\u94AE<br>\u70B9\u51FB <b>\u21C5</b> \u62D6\u62FD\u6392\u5E8F\u6309\u94AE<br>\u70B9\u51FB <b>\u2699\uFE0F</b> \u6253\u5F00\u83DC\u5355\u7CBE\u7B80\u8BBE\u7F6E</div><button class="menu_button" style="margin-top:4px;">\u77E5\u9053\u4E86</button>';
+          _g.querySelector('button').addEventListener('click', function() { _g.remove(); _mpStore.set('magic_panel_guide_shown', true); });
+          this.rootDoc.body.appendChild(_g);
+        }
+      } catch(e) {}
       this.blockOriginalMenus();
       this.ensureMenuBindings();
 
@@ -307,6 +333,15 @@
           this.close();
         }
       });
+      let _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
+      if (_opSlider) {
+        let _savedOp = _mpStore.get('magic_panel_opacity');
+        if (_savedOp) { _opSlider.value = _savedOp; this.panel.style.opacity = _savedOp; }
+        _opSlider.addEventListener('input', function() {
+          this.panel.style.opacity = this.value;
+          _mpStore.set('magic_panel_opacity', this.value);
+        }.bind(this));
+      }
       this.sortBtn.addEventListener('click', () => {
         if (this.isEditing) return;
         if (this.isSorting) {
@@ -323,7 +358,10 @@
         this.isEditing = !this.isEditing;
         this.editBtn.classList.toggle('editing', this.isEditing);
         this.saveBar.classList.toggle('active', this.isEditing);
-        if (this.isEditing) this.editSelection = new Set(getHiddenButtons());
+        if (this.isEditing) {
+        this.editSelection = new Set(getHiddenButtons());
+        this.editBtn.title = '编辑模式 (' + getHiddenButtons().length + ' 个已隐藏)';
+      }
         this.render();
       });
       this.saveBtn.addEventListener('click', () => {
@@ -333,6 +371,14 @@
         this.saveBar.classList.remove('active');
         this.render();
       });
+// Ctrl+M shortcut
+      this.rootDoc.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'm' && !e.repeat) {
+          e.preventDefault();
+          if (this.wrapper.classList.contains('active')) this.close();
+          else this.open();
+        }
+      }.bind(this));
       this.settingsBtn.addEventListener('click', () => {
         // Open MenuCleaner's settings popup via its injected button
         var openBtn = this.rootDoc.getElementById('menu-cleaner-open-popup');
@@ -525,6 +571,15 @@
           extract(child);
         });
       }
+      // Pinned buttons first
+      let _pinArr = (typeof getPinnedButtons === 'function') ? getPinnedButtons() : [];
+      if (_pinArr.length > 0) {
+        let _pinMap = {};
+        for (let _pi = 0; _pi < _pinArr.length; _pi++) _pinMap[_pinArr[_pi]] = true;
+        buttons.sort(function(a,b) {
+          return (_pinMap[b.id] ? 1 : 0) - (_pinMap[a.id] ? 1 : 0);
+        });
+      }
       // Apply stored reorder from dedicated localStorage key
       try {
         var _orderArr = _mpStore.get('magic_panel_order_' + config.key);
@@ -627,7 +682,30 @@
         });
       });
 
-      this.initDragHandlers();
+self.panel.querySelectorAll('.pin-star').forEach(function(s) {
+        s.addEventListener('click', function(e) {
+          e.stopPropagation();
+          var btnEl = this.closest('.magic-panel-btn');
+          var id = btnEl.dataset.btnId;
+          togglePinButton(id);
+          self.render();
+        });
+      });
+      // Search/filter
+      var _searchInput = this.content.parentElement.querySelector('.magic-panel-search');
+      if (_searchInput) {
+        _searchInput.style.display = this.isEditing ? 'none' : '';
+        _searchInput.addEventListener('input', function() {
+          var q = this.value.toLowerCase().trim();
+          var btns = self.panel.querySelectorAll('.magic-panel-btn');
+          for (var _bi = 0; _bi < btns.length; _bi++) {
+            var label = (btns[_bi].querySelector('.btn-label') || {}).textContent || '';
+            btns[_bi].style.display = (!q || label.toLowerCase().includes(q)) ? '' : 'none';
+          }
+          self.position();
+        });
+      }
+            this.initDragHandlers();
       this.initResizeHandler();
       try {
         var _sz = _mpStore.get('magic_panel_size');
@@ -812,10 +890,15 @@
   'use strict';
 
   // 酒馆助手在 iframe 中执行脚本，需要操作父页面的 document
-  var doc = window.frameElement ? window.parent.document : document;
-  var win = window.frameElement ? window.parent : window;
+  let doc = window.frameElement ? window.parent.document : document;
+  let win = window.frameElement ? window.parent : window;
 
   const STORAGE_KEY = 'menu_cleaner_settings';
+  // DOM 选择器缓存
+  const SEL_REORDER_ITEM = '.menu-cleaner-reorder-item';
+  const SEL_REORDER_COL_SECTION = '.menu-cleaner-reorder-column-section';
+  const SEL_CAT_HEADER = '.menu-cleaner-category-header';
+  const SEL_CAT_BODY = '.menu-cleaner-category-body';
   let autoIdSeq = 0;
   let activeTab = 'hide';
   let showSettingsPanel = false;
@@ -952,21 +1035,21 @@
       }
 
       // MagicPanel compatibility: never hide MagicPanel's own UI elements
-      var MAGIC_COMPAT_VISIBLE_SELECTORS = ['#hide-helper-wand-button', '#menu-cleaner-wand-container', '.magic-panel-wrapper', '.magic-panel-btn'];
+      let MAGIC_COMPAT_VISIBLE_SELECTORS = ['#hide-helper-wand-button', '#menu-cleaner-wand-container', '.magic-panel-wrapper', '.magic-panel-btn'];
       for (var mv = 0; mv < MAGIC_COMPAT_VISIBLE_SELECTORS.length; mv++) {
         if (settings.hiddenSelectors[MAGIC_COMPAT_VISIBLE_SELECTORS[mv]] === true) delete settings.hiddenSelectors[MAGIC_COMPAT_VISIBLE_SELECTORS[mv]];
       }
 
       // Selectors injected by this plugin — don't clean them up even if not yet in DOM
-      var SELF_INJECTED = ['#menu-cleaner-settings', '#menu-cleaner-btn'];
+      let SELF_INJECTED = ['#menu-cleaner-settings', '#menu-cleaner-btn'];
       // Don't clean stale entries — extensions may not have injected their buttons yet
-      var dcGroups = Object.keys(settings.discoveryCache);
+      let dcGroups = Object.keys(settings.discoveryCache);
       for (var dg = 0; dg < dcGroups.length; dg++) {
         settings.discoveryCache[dcGroups[dg]] = settings.discoveryCache[dcGroups[dg]].filter(function (c) {
           return doc.querySelector(c.selector);
         });
       }
-      var roGroups = Object.keys(settings.reorder);
+      let roGroups = Object.keys(settings.reorder);
       for (var rg = 0; rg < roGroups.length; rg++) {
         settings.reorder[roGroups[rg]] = settings.reorder[roGroups[rg]].filter(function (s) {
           return doc.querySelector(s);
@@ -993,8 +1076,8 @@
 
   function restoreRememberedNode(el, fallbackParent) {
     if (!el) return;
-    var home = nativeHomes.get(el);
-    var parent = home && home.parent ? home.parent : fallbackParent;
+    let home = nativeHomes.get(el);
+    let parent = home && home.parent ? home.parent : fallbackParent;
     if (!parent) return;
     if (home && home.nextSibling && home.nextSibling.parentNode === parent) {
       parent.insertBefore(el, home.nextSibling);
@@ -1205,7 +1288,7 @@
   border-left: 3px solid transparent;
 }
 
-.menu-cleaner-reorder-item:hover { background: rgba(255, 255, 255, 0.03); }
+.menu-cleaner-reorder-item:hover { background: var(--SmartThemeQuoteColor, rgba(124,92,255,0.05)); }
 
 .menu-cleaner-reorder-item > span:not(.menu-cleaner-drag-handle) {
   flex: 1;
@@ -1225,7 +1308,7 @@
 /* ── Drag Handle ─────────────────────────────────── */
 .menu-cleaner-drag-handle {
   cursor: grab;
-  color: #666;
+  color: var(--SmartThemeBodyColor,#ccc);
   font-size: 1.1em;
   letter-spacing: -2px;
   user-select: none;
@@ -1233,7 +1316,7 @@
   transition: color 0.15s;
 }
 
-.menu-cleaner-drag-handle:hover { color: #aaa; }
+.menu-cleaner-drag-handle:hover { color: var(--SmartThemeQuoteColor,#5bc0de); }
 .menu-cleaner-drag-handle:active { cursor: grabbing; }
 
 /* ── Drag States ─────────────────────────────────── */
@@ -1451,7 +1534,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       }
     }
 
-    var hiddenSelKeys = Object.keys(settings.hiddenSelectors);
+    let hiddenSelKeys = Object.keys(settings.hiddenSelectors);
     for (var hk = 0; hk < hiddenSelKeys.length; hk++) {
       if (settings.hiddenSelectors[hiddenSelKeys[hk]]) {
         rules.push(hiddenSelKeys[hk] + ' { display: none !important; }');
@@ -1471,30 +1554,30 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     if (!header) return '';
     // 1. Prefer DIRECT child b/[data-i18n] — avoids nested matches in subcontent
     for (var ci = 0; ci < header.children.length; ci++) {
-      var ch = header.children[ci];
+      let ch = header.children[ci];
       if (ch.tagName === 'B' || ch.hasAttribute('data-i18n')) {
-        var text = (ch.textContent || '').trim();
+        let text = (ch.textContent || '').trim();
         if (text) return text;
       }
     }
     // 2. Fall back to first descendant b/[data-i18n], but only if its text is short enough to be a label
-    var nested = header.querySelector('b, [data-i18n]');
+    let nested = header.querySelector('b, [data-i18n]');
     if (nested) {
-      var nt = (nested.textContent || '').trim();
+      let nt = (nested.textContent || '').trim();
       if (nt && nt.length <= 40) return nt;
     }
     // 3. Direct text nodes only — avoid pulling in version strings / taglines from nested elements
-    var direct = '';
+    let direct = '';
     for (var ni = 0; ni < header.childNodes.length; ni++) {
-      var n = header.childNodes[ni];
+      let n = header.childNodes[ni];
       if (n.nodeType === 3) direct += n.textContent;
     }
     direct = direct.trim();
     if (direct) return direct;
     // 4. Last resort: full textContent minus icon text (handles <span>-wrapped labels)
-    var icon = header.querySelector('.inline-drawer-icon');
-    var iconText = icon ? icon.textContent.trim() : '';
-    var full = (header.textContent || '').trim();
+    let icon = header.querySelector('.inline-drawer-icon');
+    let iconText = icon ? icon.textContent.trim() : '';
+    let full = (header.textContent || '').trim();
     if (iconText && full.slice(-iconText.length) === iconText) {
       full = full.slice(0, -iconText.length).trim();
     }
@@ -1505,29 +1588,29 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   function captureInitialSnapshot() {
     if (settings.initialSnapshot) return; // already captured
 
-    var snapshot = {};
+    let snapshot = {};
     for (var g = 0; g < PANEL_GROUPS.length; g++) {
-      var group = PANEL_GROUPS[g];
+      let group = PANEL_GROUPS[g];
       if (!group.discovery) continue;
-      var entries = [];
-      var seen = new Set();
+      let entries = [];
+      let seen = new Set();
 
       for (var ci = 0; ci < group.discovery.containers.length; ci++) {
-        var container = doc.querySelector(group.discovery.containers[ci]);
+        let container = doc.querySelector(group.discovery.containers[ci]);
         if (!container) continue;
-        var idx = 0;
-        var children = container.children;
+        let idx = 0;
+        let children = container.children;
         for (var c = 0; c < children.length; c++) {
-          var child = children[c];
+          let child = children[c];
           if (win.getComputedStyle(child).display === 'none') continue;
           if (!child.id) { child.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
 
-          var header = child.querySelector(group.discovery.hasHeader);
+          let header = child.querySelector(group.discovery.hasHeader);
           if (!header) continue;
-          var label = extractHeaderLabel(header);
+          let label = extractHeaderLabel(header);
           if (!label) continue;
 
-          var selector = '#' + child.id;
+          let selector = '#' + child.id;
           if (seen.has(selector)) continue;
           seen.add(selector);
 
@@ -1536,13 +1619,13 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       }
       // Fallback: include hardcoded group items that may lack .inline-drawer-header
       for (var hi = 0; hi < group.items.length; hi++) {
-        var item = group.items[hi];
+        let item = group.items[hi];
         if (seen.has(item.selector)) continue;
-        var el = doc.querySelector(item.selector);
+        let el = doc.querySelector(item.selector);
         if (!el) continue;
-        var itemCol = 0;
+        let itemCol = 0;
         for (var cci = 0; cci < group.discovery.containers.length; cci++) {
-          var cc = doc.querySelector(group.discovery.containers[cci]);
+          let cc = doc.querySelector(group.discovery.containers[cci]);
           if (cc && cc.contains(el)) { itemCol = cci; break; }
         }
         entries.push({ selector: item.selector, label: item.label, column: itemCol, index: entries.length });
@@ -1557,30 +1640,30 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   // ── Dynamic discovery ──────────────────────────────────────────
   function discoverItems(group) {
     if (!group.discovery) return [];
-    var discovered = [];
-    var seen = new Set();
-    var excludeSet = new Set(group.discovery.exclude || []);
-    var multiContainer = group.discovery.containers.length > 1;
+    let discovered = [];
+    let seen = new Set();
+    let excludeSet = new Set(group.discovery.exclude || []);
+    let multiContainer = group.discovery.containers.length > 1;
 
     for (var ci = 0; ci < group.discovery.containers.length; ci++) {
-      var container = doc.querySelector(group.discovery.containers[ci]);
+      let container = doc.querySelector(group.discovery.containers[ci]);
       if (!container) continue;
-      var columnIndex = multiContainer ? ci : undefined;
+      let columnIndex = multiContainer ? ci : undefined;
 
       if (group.discovery.itemMatch) {
-        var children = container.children;
+        let children = container.children;
         for (var c = 0; c < children.length; c++) {
-          var child = children[c];
+          let child = children[c];
           // Don't skip hidden containers: items inside may still be discoverable
           // (extensions can hide containers with inline style.display='none').
           // Individual items have their own item.style.display check.
-          var matchedElements = new Set();
-          var items = child.querySelectorAll(group.discovery.itemMatch);
+          let matchedElements = new Set();
+          let items = child.querySelectorAll(group.discovery.itemMatch);
           for (var i = 0; i < items.length; i++) {
-            var item = items[i];
+            let item = items[i];
             if (item.style.display === 'none') continue;
             if (!item.id) { item.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
-            var selector = '#' + item.id;
+            let selector = '#' + item.id;
             if (seen.has(selector) || excludeSet.has(selector)) {
               // Duplicate ID from extension: reassign unique auto-id instead of skipping
               if (item.id && item.id.indexOf('menu-cleaner-auto-') !== 0) {
@@ -1592,33 +1675,33 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
             seen.add(selector);
             matchedElements.add(item);
 
-            var labelEl = item.querySelector(group.discovery.labelIn);
-            var label = labelEl ? labelEl.textContent.trim() : item.textContent.trim();
+            let labelEl = item.querySelector(group.discovery.labelIn);
+            let label = labelEl ? labelEl.textContent.trim() : item.textContent.trim();
             if (!label) continue;
 
-            var entry = { selector: selector, label: label };
+            let entry = { selector: selector, label: label };
             if (columnIndex !== undefined) entry.column = columnIndex;
             discovered.push(entry);
           }
 
           if (group.discovery.alsoMatchChildren) {
-            var directChildren = child.children;
+            let directChildren = child.children;
             for (var dc = 0; dc < directChildren.length; dc++) {
-              var directChild = directChildren[dc];
+              let directChild = directChildren[dc];
               if (matchedElements.has(directChild)) continue;
               if (directChild.style.display === 'none') continue;
-              var isHardcodedDescendant = false;
+              let isHardcodedDescendant = false;
               for (var hi = 0; hi < group.items.length; hi++) {
-                var hcEl = doc.querySelector(group.items[hi].selector);
+                let hcEl = doc.querySelector(group.items[hi].selector);
                 if (hcEl && hcEl.contains(directChild)) { isHardcodedDescendant = true; break; }
               }
               if (isHardcodedDescendant) continue;
-              var span = directChild.querySelector('span');
+              let span = directChild.querySelector('span');
               if (!span) continue;
-              var labelText = span.textContent.trim();
+              let labelText = span.textContent.trim();
               if (!labelText) continue;
               if (!directChild.id) { directChild.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
-              var ds = '#' + directChild.id;
+              let ds = '#' + directChild.id;
               if (seen.has(ds) || excludeSet.has(ds)) {
                 if (directChild.id && directChild.id.indexOf('menu-cleaner-auto-') !== 0) {
                   directChild.id = 'menu-cleaner-auto-' + (autoIdSeq++);
@@ -1627,7 +1710,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
                 } else { continue; }
               }
               seen.add(ds);
-              var de = { selector: ds, label: labelText };
+              let de = { selector: ds, label: labelText };
               if (columnIndex !== undefined) de.column = columnIndex;
               discovered.push(de);
             }
@@ -1635,9 +1718,9 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         }
       } else {
         // Mode: match container children that have a specific header element
-        var headerChildren = container.children;
+        let headerChildren = container.children;
         for (var hc = 0; hc < headerChildren.length; hc++) {
-          var hcChild = headerChildren[hc];
+          let hcChild = headerChildren[hc];
 
           // Extension containers (like #qr_container) are wrappers that may contain
           // multiple independent drawer elements. Scan their direct children so that
@@ -1645,14 +1728,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           // separately instead of being lumped under the wrapper.
           if (hcChild.classList.contains('extension_container') && !hcChild.classList.contains('inline-drawer')) {
             for (var wc = 0; wc < hcChild.children.length; wc++) {
-              var wrapperChild = hcChild.children[wc];
+              let wrapperChild = hcChild.children[wc];
               if (win.getComputedStyle(wrapperChild).display === 'none') continue;
-              var wHeader = wrapperChild.querySelector(group.discovery.hasHeader);
+              let wHeader = wrapperChild.querySelector(group.discovery.hasHeader);
               if (!wHeader) continue;
-              var wLabel = extractHeaderLabel(wHeader);
+              let wLabel = extractHeaderLabel(wHeader);
               if (!wLabel) continue;
               if (!wrapperChild.id) { wrapperChild.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
-              var wSelector = '#' + wrapperChild.id;
+              let wSelector = '#' + wrapperChild.id;
               if (seen.has(wSelector)) {
                 if (wrapperChild.id && wrapperChild.id.indexOf('menu-cleaner-auto-') !== 0) {
                   wrapperChild.id = 'menu-cleaner-auto-' + (autoIdSeq++);
@@ -1661,21 +1744,21 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
                 } else { continue; }
               }
               seen.add(wSelector);
-              var wEntry = { selector: wSelector, label: wLabel };
+              let wEntry = { selector: wSelector, label: wLabel };
               if (columnIndex !== undefined) wEntry.column = columnIndex;
               discovered.push(wEntry);
             }
             continue;
           }
 
-          var header = hcChild.querySelector(group.discovery.hasHeader);
+          let header = hcChild.querySelector(group.discovery.hasHeader);
           if (!header) continue;
 
-          var label2 = extractHeaderLabel(header);
+          let label2 = extractHeaderLabel(header);
           if (!label2) continue;
 
           if (!hcChild.id) { hcChild.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
-          var hcSelector = '#' + hcChild.id;
+          let hcSelector = '#' + hcChild.id;
           if (seen.has(hcSelector)) {
             if (hcChild.id && hcChild.id.indexOf('menu-cleaner-auto-') !== 0) {
               hcChild.id = 'menu-cleaner-auto-' + (autoIdSeq++);
@@ -1685,7 +1768,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           }
           seen.add(hcSelector);
 
-          var hcEntry = { selector: hcSelector, label: label2 };
+          let hcEntry = { selector: hcSelector, label: label2 };
           if (columnIndex !== undefined) hcEntry.column = columnIndex;
           discovered.push(hcEntry);
         }
@@ -1696,19 +1779,19 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   function refreshDiscoveryCache() {
     for (var g = 0; g < PANEL_GROUPS.length; g++) {
-      var group = PANEL_GROUPS[g];
+      let group = PANEL_GROUPS[g];
       if (!group.discovery) continue;
-      var allDiscovered = discoverItems(group);
-      var hardcodedSet = new Set();
+      let allDiscovered = discoverItems(group);
+      let hardcodedSet = new Set();
       for (var hi = 0; hi < group.items.length; hi++) hardcodedSet.add(group.items[hi].selector);
 
       // Filter: exclude hardcoded items and their descendants
-      var newItems = allDiscovered.filter(function(d) {
+      let newItems = allDiscovered.filter(function(d) {
         if (hardcodedSet.has(d.selector)) return false;
-        var el = doc.querySelector(d.selector);
+        let el = doc.querySelector(d.selector);
         if (el) {
           for (var hsi = 0; hsi < group.items.length; hsi++) {
-            var hcEl = doc.querySelector(group.items[hsi].selector);
+            let hcEl = doc.querySelector(group.items[hsi].selector);
             if (hcEl && hcEl.contains(el)) return false;
           }
         }
@@ -1716,8 +1799,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       });
 
       // Preserve column origin from old cache (user's prior cross-column moves win over physical scan)
-      var oldCache = settings.discoveryCache[group.id] || [];
-      var oldColMap = {};
+      let oldCache = settings.discoveryCache[group.id] || [];
+      let oldColMap = {};
       for (var oc = 0; oc < oldCache.length; oc++) {
         if (oldCache[oc].column !== undefined) oldColMap[oldCache[oc].selector] = oldCache[oc].column;
       }
@@ -1728,14 +1811,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       }
 
       // Build exclude set for this group (TT-specific noisy elements etc.)
-      var excludeSet = new Set((group.discovery.exclude || []));
+      let excludeSet = new Set((group.discovery.exclude || []));
 
       // Preserve hardcoded items' column info (created by cross-column moves)
       for (var oi = 0; oi < oldCache.length; oi++) {
-        var old = oldCache[oi];
+        let old = oldCache[oi];
         if (excludeSet.has(old.selector)) continue;
         if (hardcodedSet.has(old.selector) && old.column !== undefined) {
-          var found = false;
+          let found = false;
           for (var fi = 0; fi < newItems.length; fi++) {
             if (newItems[fi].selector === old.selector) { found = true; break; }
           }
@@ -1747,10 +1830,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
       // Safety net: carry over non-hardcoded entries still in DOM but missed by current scan
       for (var si = 0; si < oldCache.length; si++) {
-        var oldEntry = oldCache[si];
+        let oldEntry = oldCache[si];
         if (excludeSet.has(oldEntry.selector)) continue;
         if (hardcodedSet.has(oldEntry.selector)) continue;
-        var alreadyInNew = false;
+        let alreadyInNew = false;
         for (var nj = 0; nj < newItems.length; nj++) {
           if (newItems[nj].selector === oldEntry.selector) { alreadyInNew = true; break; }
         }
@@ -1764,7 +1847,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       // Append newly discovered selectors to reorder list
       if (REORDER_GROUP_IDS.indexOf(group.id) !== -1 && newItems.length > 0) {
         if (!settings.reorder[group.id]) settings.reorder[group.id] = [];
-        var existing = new Set(settings.reorder[group.id]);
+        let existing = new Set(settings.reorder[group.id]);
         for (var ai = 0; ai < newItems.length; ai++) {
           if (!existing.has(newItems[ai].selector)) {
             settings.reorder[group.id].push(newItems[ai].selector);
@@ -1778,8 +1861,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   // ── Column cache helper ─────────────────────────────────────────
   function setColumnInCache(selector, groupId, columnIndex) {
     if (!settings.discoveryCache[groupId]) settings.discoveryCache[groupId] = [];
-    var cached = settings.discoveryCache[groupId];
-    var entry = null;
+    let cached = settings.discoveryCache[groupId];
+    let entry = null;
     for (var c = 0; c < cached.length; c++) {
       if (cached[c].selector === selector) { entry = cached[c]; break; }
     }
@@ -1787,7 +1870,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       entry.column = columnIndex;
     } else {
       // Try to source a clean label: hardcoded list first, then header extraction
-      var label = '';
+      let label = '';
       for (var pg = 0; pg < PANEL_GROUPS.length; pg++) {
         if (PANEL_GROUPS[pg].id !== groupId) continue;
         for (var pi = 0; pi < PANEL_GROUPS[pg].items.length; pi++) {
@@ -1799,9 +1882,9 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         break;
       }
       if (!label) {
-        var el = doc.querySelector(selector);
+        let el = doc.querySelector(selector);
         if (el) {
-          var hd = el.querySelector('.inline-drawer-header');
+          let hd = el.querySelector('.inline-drawer-header');
           if (hd) label = extractHeaderLabel(hd);
           if (!label) label = (el.textContent || '').trim().substring(0, 40);
         }
@@ -1813,32 +1896,32 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Reorder helpers ─────────────────────────────────────────────
   function getReorderItems(groupId) {
-    var group = null;
+    let group = null;
     for (var g = 0; g < PANEL_GROUPS.length; g++) {
       if (PANEL_GROUPS[g].id === groupId) { group = PANEL_GROUPS[g]; break; }
     }
     if (!group) return [];
 
-    var order = settings.reorder[groupId];
+    let order = settings.reorder[groupId];
     if (!order || order.length === 0) {
       order = group.items.map(function (i) { return i.selector; });
-      var cached0 = settings.discoveryCache[groupId] || [];
+      let cached0 = settings.discoveryCache[groupId] || [];
       for (var ci = 0; ci < cached0.length; ci++) order.push(cached0[ci].selector);
     }
 
-    var labelMap = {};
+    let labelMap = {};
     for (var hi = 0; hi < group.items.length; hi++) {
       labelMap[group.items[hi].selector] = group.items[hi].label;
     }
-    var cachedLabels = settings.discoveryCache[groupId] || [];
+    let cachedLabels = settings.discoveryCache[groupId] || [];
     for (var cl = 0; cl < cachedLabels.length; cl++) {
       labelMap[cachedLabels[cl].selector] = cachedLabels[cl].label;
     }
 
-    var result = [];
-    var seen = new Set();
+    let result = [];
+    let seen = new Set();
     for (var oi = 0; oi < order.length; oi++) {
-      var selector = order[oi];
+      let selector = order[oi];
       if (seen.has(selector)) continue;
       seen.add(selector);
       if (settings.hiddenSelectors[selector]) continue;
@@ -1846,15 +1929,15 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     }
 
     for (var hi2 = 0; hi2 < group.items.length; hi2++) {
-      var item = group.items[hi2];
+      let item = group.items[hi2];
       if (!seen.has(item.selector) && !settings.hiddenSelectors[item.selector]) {
         seen.add(item.selector);
         result.push({ selector: item.selector, label: item.label });
       }
     }
-    var cachedItems = settings.discoveryCache[groupId] || [];
+    let cachedItems = settings.discoveryCache[groupId] || [];
     for (var ci2 = 0; ci2 < cachedItems.length; ci2++) {
-      var ditem = cachedItems[ci2];
+      let ditem = cachedItems[ci2];
       if (!seen.has(ditem.selector) && !settings.hiddenSelectors[ditem.selector]) {
         seen.add(ditem.selector);
         result.push({ selector: ditem.selector, label: ditem.label });
@@ -1865,7 +1948,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function getColumnIndex(selector, groupId) {
-    var cached = settings.discoveryCache[groupId] || [];
+    let cached = settings.discoveryCache[groupId] || [];
     for (var c = 0; c < cached.length; c++) {
       if (cached[c].selector === selector) return cached[c].column || 0;
     }
@@ -1874,12 +1957,12 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Native DOM reorder (for groups not managed by extensions panel) ─
   function findExtensionUnitForSelector(selector, containers) {
-    var el = doc.querySelector(selector);
+    let el = doc.querySelector(selector);
     if (!el) return null;
     for (var ci = 0; ci < containers.length; ci++) {
-      var container = containers[ci];
+      let container = containers[ci];
       if (!container || !container.contains(el)) continue;
-      var unit = el;
+      let unit = el;
       while (unit.parentNode && unit.parentNode !== container) {
         unit = unit.parentNode;
       }
@@ -1890,21 +1973,21 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   function applyNativeReorder(groupId) {
     if (groupId === 'extensionsSettings') {
-      var nativeCol1 = doc.getElementById('extensions_settings');
-      var nativeCol2 = doc.getElementById('extensions_settings2');
+      let nativeCol1 = doc.getElementById('extensions_settings');
+      let nativeCol2 = doc.getElementById('extensions_settings2');
       if (!nativeCol1) return;
 
-      var nativeContainers = [nativeCol1, nativeCol2];
-      var extItems = getReorderItems(groupId);
-      var placedUnits = new Set();
-      var orderedCols = [[], []];
+      let nativeContainers = [nativeCol1, nativeCol2];
+      let extItems = getReorderItems(groupId);
+      let placedUnits = new Set();
+      let orderedCols = [[], []];
 
       for (var ei = 0; ei < extItems.length; ei++) {
-        var extSelector = extItems[ei].selector;
-        var extUnit = findExtensionUnitForSelector(extSelector, nativeContainers);
+        let extSelector = extItems[ei].selector;
+        let extUnit = findExtensionUnitForSelector(extSelector, nativeContainers);
         if (!extUnit || placedUnits.has(extUnit)) continue;
         placedUnits.add(extUnit);
-        var extCol = settings.columnMode === 'single' ? 0 : (getColumnIndex(extSelector, groupId) === 1 ? 1 : 0);
+        let extCol = settings.columnMode === 'single' ? 0 : (getColumnIndex(extSelector, groupId) === 1 ? 1 : 0);
         orderedCols[extCol].push(extUnit);
       }
 
@@ -1919,14 +2002,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       return;
     }
 
-    var items = getReorderItems(groupId);
+    let items = getReorderItems(groupId);
     if (items.length < 2) return;
 
-    var els = [];
+    let els = [];
     for (var i = 0; i < items.length; i++) {
-      var el = doc.querySelector(items[i].selector);
+      let el = doc.querySelector(items[i].selector);
       if (el && (el.offsetParent === null || win.getComputedStyle(el).display === 'none')) {
-        var all = doc.querySelectorAll(items[i].selector);
+        let all = doc.querySelectorAll(items[i].selector);
         for (var ai = 0; ai < all.length; ai++) {
           if (all[ai].offsetParent !== null && win.getComputedStyle(all[ai]).display !== 'none') {
             el = all[ai];
@@ -1938,9 +2021,9 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     }
     if (els.length < 2) return;
 
-    var container = els[0].parentNode;
+    let container = els[0].parentNode;
     while (container) {
-      var ok = true;
+      let ok = true;
       for (var j = 0; j < els.length; j++) {
         if (!container.contains(els[j])) { ok = false; break; }
       }
@@ -1949,10 +2032,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     }
     if (!container) return;
 
-    var units = [];
-    var seen = new Set();
+    let units = [];
+    let seen = new Set();
     for (var k = 0; k < els.length; k++) {
-      var unit = els[k];
+      let unit = els[k];
       while (unit.parentNode && unit.parentNode !== container) {
         unit = unit.parentNode;
       }
@@ -1973,7 +2056,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   function createExtensionsPanelDOM() {
     if (doc.getElementById('menu-cleaner-ext-panel')) return;
 
-    var html =
+    let html =
       '<div id="menu-cleaner-ext-panel" class="drawer-content menu-cleaner-ext-panel">' +
         '<div class="extensions_block flex-container">' +
           '<div id="menu-cleaner-ext-topbar" class="alignitemscenter flex-container wide100p">' +
@@ -1989,24 +2072,24 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function renderExtensionsPanel() {
-    var col1 = doc.getElementById('menu-cleaner-ext-col1');
-    var col2 = doc.getElementById('menu-cleaner-ext-col2');
-    var nativeCol1 = doc.getElementById('extensions_settings');
-    var nativeCol2 = doc.getElementById('extensions_settings2');
+    let col1 = doc.getElementById('menu-cleaner-ext-col1');
+    let col2 = doc.getElementById('menu-cleaner-ext-col2');
+    let nativeCol1 = doc.getElementById('extensions_settings');
+    let nativeCol2 = doc.getElementById('extensions_settings2');
     if (!col1 || !col2 || !nativeCol1) return;
 
     suppressObserver = true;
     rememberNativeHome(nativeCol1);
     if (nativeCol2) rememberNativeHome(nativeCol2);
 
-    var topbar = doc.getElementById('menu-cleaner-ext-topbar');
+    let topbar = doc.getElementById('menu-cleaner-ext-topbar');
     if (topbar) {
-      var nativeDetails = doc.getElementById('extensions_details');
-      var nativeThirdParty = doc.getElementById('third_party_extension_button');
-      var notifyLabel = doc.querySelector('#rm_extensions_block .checkbox_label.flexNoGap');
-      var topbarNodes = [nativeDetails, nativeThirdParty, notifyLabel];
+      let nativeDetails = doc.getElementById('extensions_details');
+      let nativeThirdParty = doc.getElementById('third_party_extension_button');
+      let notifyLabel = doc.querySelector('#rm_extensions_block .checkbox_label.flexNoGap');
+      let topbarNodes = [nativeDetails, nativeThirdParty, notifyLabel];
       for (var tn = 0; tn < topbarNodes.length; tn++) {
-        var node = topbarNodes[tn];
+        let node = topbarNodes[tn];
         if (!node) continue;
         rememberNativeHome(node);
         if (node.parentNode !== topbar) topbar.appendChild(node);
@@ -2032,19 +2115,19 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   function syncPanelZIndex() {
 
 
-    var panel = doc.getElementById('menu-cleaner-ext-panel');
+    let panel = doc.getElementById('menu-cleaner-ext-panel');
     if (!panel) return;
     // Inherit z-index from the native drawer-content that our panel replaces.
     // Some themes set aggressive z-index values; matching the native drawer
     // ensures our panel never ends up underneath themed elements.
-    var sources = [
+    let sources = [
       doc.querySelector('#extensions-settings-button > .drawer-content'),
       doc.getElementById('rm_extensions_block'),
       doc.getElementById('extensions_settings')
     ];
     for (var i = 0; i < sources.length; i++) {
       if (sources[i]) {
-        var z = win.getComputedStyle(sources[i]).zIndex;
+        let z = win.getComputedStyle(sources[i]).zIndex;
         if (z && z !== 'auto') { panel.style.zIndex = z; return; }
       }
     }
@@ -2052,10 +2135,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function syncPanelTheme() {
-    var panel = doc.getElementById('menu-cleaner-ext-panel');
+    let panel = doc.getElementById('menu-cleaner-ext-panel');
     if (!panel) return;
 
-    var sources = [
+    let sources = [
       doc.getElementById('rm_extensions_block'),
       doc.querySelector('#extensions-settings-button > .drawer-content'),
       doc.getElementById('extensions_settings'),
@@ -2063,9 +2146,9 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     ];
 
     for (var i = 0; i < sources.length; i++) {
-      var source = sources[i];
+      let source = sources[i];
       if (!source) continue;
-      var cs = win.getComputedStyle(source);
+      let cs = win.getComputedStyle(source);
       if (!cs) continue;
 
       if (cs.color) panel.style.color = cs.color;
@@ -2086,14 +2169,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function syncPanelToggleState() {
-    var drawerToggle = doc.querySelector('#extensions-settings-button > .drawer-toggle');
+    let drawerToggle = doc.querySelector('#extensions-settings-button > .drawer-toggle');
     if (!drawerToggle) return;
     drawerToggle.setAttribute('aria-expanded', extPanelVisible ? 'true' : 'false');
   }
 
   function toggleExtensionsPanel() {
     extPanelVisible = !extPanelVisible;
-    var panel = doc.getElementById('menu-cleaner-ext-panel');
+    let panel = doc.getElementById('menu-cleaner-ext-panel');
     if (!panel) {
       createExtensionsPanelDOM();
       panel = doc.getElementById('menu-cleaner-ext-panel');
@@ -2123,7 +2206,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function positionExtensionsPanel() {
-    var panel = doc.getElementById('menu-cleaner-ext-panel');
+    let panel = doc.getElementById('menu-cleaner-ext-panel');
     if (!panel) return;
     panel.style.maxHeight = '80vh';
     panel.style.overflow = 'auto';
@@ -2131,7 +2214,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Panel intercept ─────────────────────────────────────────────
   function setupPanelIntercept() {
-    var drawerToggle = doc.querySelector('#extensions-settings-button > .drawer-toggle');
+    let drawerToggle = doc.querySelector('#extensions-settings-button > .drawer-toggle');
     if (!drawerToggle) {
       setTimeout(setupPanelIntercept, 500);
       return;
@@ -2150,16 +2233,16 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Return elements to native on disable ────────────────────────
   function returnElementsToNative() {
-    var topbar = doc.getElementById('menu-cleaner-ext-topbar');
+    let topbar = doc.getElementById('menu-cleaner-ext-topbar');
     if (topbar) {
-      var topbarNodes = topbar.querySelectorAll('#extensions_details, #third_party_extension_button, .checkbox_label.flexNoGap');
+      let topbarNodes = topbar.querySelectorAll('#extensions_details, #third_party_extension_button, .checkbox_label.flexNoGap');
       for (var ti = 0; ti < topbarNodes.length; ti++) {
         restoreRememberedNode(topbarNodes[ti], doc.getElementById('rm_extensions_block'));
       }
     }
 
-    var nativeCol1 = doc.getElementById('extensions_settings');
-    var nativeCol2 = doc.getElementById('extensions_settings2');
+    let nativeCol1 = doc.getElementById('extensions_settings');
+    let nativeCol2 = doc.getElementById('extensions_settings2');
     if (nativeCol1) restoreRememberedNode(nativeCol1, doc.getElementById('rm_extensions_block'));
     if (nativeCol2) restoreRememberedNode(nativeCol2, doc.getElementById('rm_extensions_block'));
   }
@@ -2174,14 +2257,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── UI: Settings drawer in extensions_settings ──────────────────
   function injectSettingsEntry() {
-    var target = doc.querySelector('#extensions_settings');
+    let target = doc.querySelector('#extensions_settings');
     if (!target) {
       setTimeout(injectSettingsEntry, 500);
       return;
     }
     if (doc.getElementById('menu-cleaner-settings')) return;
 
-    var html =
+    let html =
       '<div id="menu-cleaner-settings" class="inline-drawer">' +
         '<div class="inline-drawer-toggle inline-drawer-header">' +
           '<b>酒馆菜单管理器</b>' +
@@ -2202,13 +2285,13 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       '</div>';
     target.insertAdjacentHTML('beforeend', html);
 
-    var toggleEl = target.querySelector('#menu-cleaner-settings .inline-drawer-toggle');
-    var contentEl = target.querySelector('#menu-cleaner-settings .inline-drawer-content');
+    let toggleEl = target.querySelector('#menu-cleaner-settings .inline-drawer-toggle');
+    let contentEl = target.querySelector('#menu-cleaner-settings .inline-drawer-content');
     toggleEl && toggleEl.addEventListener('click', function () {
       contentEl && contentEl.classList.toggle('closedDrawer');
     });
 
-    var enableCb = doc.getElementById('menu-cleaner-enable');
+    let enableCb = doc.getElementById('menu-cleaner-enable');
     enableCb && enableCb.addEventListener('change', function (e) {
       settings.enabled = e.target.checked;
       saveSettings();
@@ -2217,7 +2300,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         applyNativeReorder('extensionsSettings');
       } else {
         clearAllHides();
-        var panel = doc.getElementById('menu-cleaner-ext-panel');
+        let panel = doc.getElementById('menu-cleaner-ext-panel');
         if (panel) panel.style.display = 'none';
         extPanelVisible = false;
         returnElementsToNative();
@@ -2225,7 +2308,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       }
     });
 
-    var openBtn = doc.getElementById('menu-cleaner-open-popup');
+    let openBtn = doc.getElementById('menu-cleaner-open-popup');
     openBtn && openBtn.addEventListener('click', function () { openPopup(); });
   }
 
@@ -2233,7 +2316,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   function createPopupDOM() {
     if (doc.getElementById('menu-cleaner-popup')) return;
 
-    var html =
+    let html =
       '<div id="menu-cleaner-backdrop" class="menu-cleaner-backdrop"></div>' +
       '<div id="menu-cleaner-popup" class="menu-cleaner-popup">' +
         '<div class="menu-cleaner-popup-header">' +
@@ -2251,14 +2334,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       '</div>';
     doc.body.insertAdjacentHTML('beforeend', html);
 
-    var closeBtn = doc.getElementById('menu-cleaner-close');
-    var backdrop = doc.getElementById('menu-cleaner-backdrop');
+    let closeBtn = doc.getElementById('menu-cleaner-close');
+    let backdrop = doc.getElementById('menu-cleaner-backdrop');
     closeBtn && closeBtn.addEventListener('click', closePopup);
     backdrop && backdrop.addEventListener('click', closePopup);
-    var settingsBtn = doc.getElementById('menu-cleaner-settings-btn');
+    let settingsBtn = doc.getElementById('menu-cleaner-settings-btn');
     settingsBtn && settingsBtn.addEventListener('click', toggleSettingsPanel);
 
-    var tabs = doc.querySelectorAll('.menu-cleaner-tab');
+    let tabs = doc.querySelectorAll('.menu-cleaner-tab');
     for (var t = 0; t < tabs.length; t++) {
       tabs[t].addEventListener('click', function() { switchTab(this.dataset.tab); });
     }
@@ -2279,7 +2362,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   function closePopup() {
     // Clean up any drag state (Escape during drag)
     dragActive = false;
-    var oldDragItems = doc.querySelectorAll('.menu-cleaner-reorder-item.dragging, .menu-cleaner-reorder-item.drag-over, .menu-cleaner-reorder-column-section.drag-over-section');
+    let oldDragItems = doc.querySelectorAll('.menu-cleaner-reorder-item.dragging, .menu-cleaner-reorder-item.drag-over, .menu-cleaner-reorder-column-section.drag-over-section');
     for (var _di = 0; _di < oldDragItems.length; _di++) {
       oldDragItems[_di].classList.remove('dragging', 'drag-over');
     }
@@ -2287,10 +2370,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     for (var _di2 = 0; _di2 < oldDragItems.length; _di2++) {
       oldDragItems[_di2].classList.remove('drag-over-section');
     }
-    var ghosts = doc.querySelectorAll('.menu-cleaner-ghost');
+    let ghosts = doc.querySelectorAll('.menu-cleaner-ghost');
     for (var _g = 0; _g < ghosts.length; _g++) ghosts[_g].remove();
-    var backdrop = doc.getElementById('menu-cleaner-backdrop');
-    var popup = doc.getElementById('menu-cleaner-popup');
+    let backdrop = doc.getElementById('menu-cleaner-backdrop');
+    let popup = doc.getElementById('menu-cleaner-popup');
     if (backdrop) backdrop.style.display = 'none';
     if (popup) popup.style.display = 'none';
     showSettingsPanel = false;
@@ -2309,8 +2392,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function updatePopupView() {
-    var tabsEl = doc.getElementById('menu-cleaner-tabs');
-    var settingsBtn = doc.getElementById('menu-cleaner-settings-btn');
+    let tabsEl = doc.getElementById('menu-cleaner-tabs');
+    let settingsBtn = doc.getElementById('menu-cleaner-settings-btn');
 
     if (showSettingsPanel) {
       if (tabsEl) tabsEl.style.display = 'none';
@@ -2324,7 +2407,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   function switchTab(tabName) {
     activeTab = tabName;
-    var tabs = doc.querySelectorAll('.menu-cleaner-tab');
+    let tabs = doc.querySelectorAll('.menu-cleaner-tab');
     for (var t = 0; t < tabs.length; t++) {
       if (tabs[t].dataset.tab === tabName) {
         tabs[t].classList.add('active');
@@ -2342,7 +2425,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
     // When switching to single, move all extensionsSettings items to left column
     if (mode === 'single') {
-      var cache = settings.discoveryCache['extensionsSettings'] || [];
+      let cache = settings.discoveryCache['extensionsSettings'] || [];
       for (var ci = 0; ci < cache.length; ci++) cache[ci].column = 0;
     }
 
@@ -2357,10 +2440,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Settings panel view ─────────────────────────────────────────
   function renderSettingsView() {
-    var body = doc.getElementById('menu-cleaner-popup-body');
+    let body = doc.getElementById('menu-cleaner-popup-body');
     if (!body) return;
 
-    var html =
+    let html =
       '<div class="menu-cleaner-settings-panel">' +
         '<button id="menu-cleaner-rescan" class="menu_button menu-cleaner-settings-btn-full">手动重新扫描</button>' +
         '<button id="menu-cleaner-reset-order" class="menu_button menu-cleaner-settings-btn-full">恢复原始排序</button>' +
@@ -2384,12 +2467,12 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
     body.innerHTML = html;
 
-    var rescanBtn = doc.getElementById('menu-cleaner-rescan');
+    let rescanBtn = doc.getElementById('menu-cleaner-rescan');
     rescanBtn && rescanBtn.addEventListener('click', function() { doRescan(); });
-    var resetBtn = doc.getElementById('menu-cleaner-reset-order');
+    let resetBtn = doc.getElementById('menu-cleaner-reset-order');
     resetBtn && resetBtn.addEventListener('click', function() { resetAllReorders(); });
 
-    var clearBtn = doc.getElementById('menu-cleaner-clear-data');
+    let clearBtn = doc.getElementById('menu-cleaner-clear-data');
     clearBtn && clearBtn.addEventListener('click', function() {
       if (!win.confirm('确定要清除所有插件配置数据吗？此操作不可撤销。')) return;
       settings = Object.assign({}, defaultSettings);
@@ -2405,15 +2488,15 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       renderExtensionsPanel();
     });
 
-    var toastCb = doc.getElementById('menu-cleaner-rescan-toast');
+    let toastCb = doc.getElementById('menu-cleaner-rescan-toast');
     toastCb && toastCb.addEventListener('change', function(e) {
       settings.rescanToast = e.target.checked;
       saveSettings();
     });
 
-    var dualBtn = doc.getElementById('menu-cleaner-colmode-dual');
+    let dualBtn = doc.getElementById('menu-cleaner-colmode-dual');
     dualBtn && dualBtn.addEventListener('click', function() { applyColumnMode('dual'); });
-    var singleBtn = doc.getElementById('menu-cleaner-colmode-single');
+    let singleBtn = doc.getElementById('menu-cleaner-colmode-single');
     singleBtn && singleBtn.addEventListener('click', function() { applyColumnMode('single'); });
 
     positionPopup();
@@ -2421,28 +2504,28 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Reorder view ────────────────────────────────────────────────
   function renderReorderView() {
-    var body = doc.getElementById('menu-cleaner-popup-body');
+    let body = doc.getElementById('menu-cleaner-popup-body');
     if (!body) return;
 
-    var expanded = new Set();
-    var catBodies = doc.querySelectorAll('.menu-cleaner-category-body:not(.collapsed)');
+    let expanded = new Set();
+    let catBodies = doc.querySelectorAll('.menu-cleaner-category-body:not(.collapsed)');
     for (var eb = 0; eb < catBodies.length; eb++) {
       expanded.add(catBodies[eb].dataset.group);
     }
 
-    var reorderGroups = [];
+    let reorderGroups = [];
     for (var rg = 0; rg < PANEL_GROUPS.length; rg++) {
       if (REORDER_GROUP_IDS.indexOf(PANEL_GROUPS[rg].id) !== -1) {
         reorderGroups.push(PANEL_GROUPS[rg]);
       }
     }
-    var html = '';
+    let html = '';
 
     for (var g = 0; g < reorderGroups.length; g++) {
-      var group = reorderGroups[g];
-      var items = getReorderItems(group.id);
-      var isExpanded = expanded.has(group.id);
-      var isDualCol = group.id === 'extensionsSettings' && settings.columnMode !== 'single';
+      let group = reorderGroups[g];
+      let items = getReorderItems(group.id);
+      let isExpanded = expanded.has(group.id);
+      let isDualCol = group.id === 'extensionsSettings' && settings.columnMode !== 'single';
 
       html += '<div class="menu-cleaner-category">';
       html += '<div class="menu-cleaner-category-header" data-group="' + escHtml(group.id) + '">' +
@@ -2453,10 +2536,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       html += '<div class="menu-cleaner-category-body' + (isExpanded ? '' : ' collapsed') + '" data-group="' + escHtml(group.id) + '">';
 
       if (isDualCol) {
-        var flatIndexMap = {};
+        let flatIndexMap = {};
         for (var fi = 0; fi < items.length; fi++) flatIndexMap[items[fi].selector] = fi;
-        var col0Items = items.filter(function(it) { return getColumnIndex(it.selector, group.id) === 0; });
-        var col1Items = items.filter(function(it) { return getColumnIndex(it.selector, group.id) === 1; });
+        let col0Items = items.filter(function(it) { return getColumnIndex(it.selector, group.id) === 0; });
+        let col1Items = items.filter(function(it) { return getColumnIndex(it.selector, group.id) === 1; });
         html += renderColumnSection(group, col0Items, 0, '左栏', flatIndexMap);
         html += renderColumnSection(group, col1Items, 1, '右栏', flatIndexMap);
       } else {
@@ -2475,12 +2558,12 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     body.innerHTML = html;
 
     // Bind category collapse
-    var headers = doc.querySelectorAll('.menu-cleaner-category-header');
+    let headers = doc.querySelectorAll(SEL_CAT_HEADER);
     for (var h = 0; h < headers.length; h++) {
       headers[h].addEventListener('click', function() {
-        var groupId = this.dataset.group;
-        var catBody = doc.querySelector('.menu-cleaner-category-body[data-group="' + groupId + '"]');
-        var arrow = this.querySelector('.menu-cleaner-category-arrow');
+        let groupId = this.dataset.group;
+        let catBody = doc.querySelector('.menu-cleaner-category-body[data-group="' + groupId + '"]');
+        let arrow = this.querySelector('.menu-cleaner-category-arrow');
         if (catBody) {
           catBody.classList.toggle('collapsed');
           if (arrow) arrow.textContent = catBody.classList.contains('collapsed') ? '▶' : '▼';
@@ -2494,13 +2577,13 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function renderColumnSection(group, items, colIndex, label, flatIndexMap) {
-    var h = '<div class="menu-cleaner-reorder-column-section" data-column="' + colIndex + '">';
+    let h = '<div class="menu-cleaner-reorder-column-section" data-column="' + colIndex + '">';
     h += '<div class="menu-cleaner-reorder-column-label">' + label + ' (' + items.length + ' 项)</div>';
     if (items.length === 0) {
       h += '<div class="menu-cleaner-reorder-empty">没有可见元素</div>';
     } else {
       for (var i = 0; i < items.length; i++) {
-        var flatIdx = flatIndexMap ? flatIndexMap[items[i].selector] : i;
+        let flatIdx = flatIndexMap ? flatIndexMap[items[i].selector] : i;
         h += buildReorderItemHTML(items[i], group.id, flatIdx, colIndex);
       }
     }
@@ -2517,24 +2600,24 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Drag events ─────────────────────────────────────────────────
   function bindReorderDragEvents() {
-    var draggedItem = null;
-    var draggedGroup = null;
-    var draggedIndex = -1;
-    var touchGhost = null;
-    var touchStartX = 0;
-    var touchStartY = 0;
-    var touchMoved = false;
-    var dropTargetColumn = undefined;
+    let draggedItem = null;
+    let draggedGroup = null;
+    let draggedIndex = -1;
+    let touchGhost = null;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchMoved = false;
+    let dropTargetColumn = undefined;
 
     function doReorder(fromIndex, toIndex, groupId) {
-      var fromCol = draggedItem ? draggedItem.dataset.column : '-1';
-      var toCol = dropTargetColumn;
+      let fromCol = draggedItem ? draggedItem.dataset.column : '-1';
+      let toCol = dropTargetColumn;
 
       if (fromCol !== '-1' && toCol !== undefined && toCol !== '-1' && fromCol !== toCol) {
         // Cross-column move
-        var selector = draggedItem.dataset.selector;
-        var items = getReorderItems(groupId);
-        var movedItem = null;
+        let selector = draggedItem.dataset.selector;
+        let items = getReorderItems(groupId);
+        let movedItem = null;
         for (var mi = 0; mi < items.length; mi++) {
           if (items[mi].selector === selector) { movedItem = items[mi]; break; }
         }
@@ -2542,14 +2625,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
         setColumnInCache(selector, groupId, parseInt(toCol));
 
-        var remaining = items.filter(function(it) { return it.selector !== selector; });
+        let remaining = items.filter(function(it) { return it.selector !== selector; });
 
-        var targetItem = null;
+        let targetItem = null;
         for (var ti = 0; ti < items.length; ti++) {
           if (ti === toIndex) { targetItem = items[ti]; break; }
         }
         if (targetItem) {
-          var insertIdx = -1;
+          let insertIdx = -1;
           for (var ri = 0; ri < remaining.length; ri++) {
             if (remaining[ri].selector === targetItem.selector) { insertIdx = ri; break; }
           }
@@ -2571,10 +2654,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       }
 
       // Same-column reorder
-      var sitems = getReorderItems(groupId);
+      let sitems = getReorderItems(groupId);
       if (fromIndex < 0 || fromIndex >= sitems.length || toIndex < 0 || toIndex >= sitems.length) return;
 
-      var moved = sitems.splice(fromIndex, 1)[0];
+      let moved = sitems.splice(fromIndex, 1)[0];
       sitems.splice(toIndex, 0, moved);
 
       settings.reorder[groupId] = sitems.map(function(i) { return i.selector; });
@@ -2587,9 +2670,9 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     function cleanupDrag() {
       dragActive = false;
       if (draggedItem) draggedItem.classList.remove('dragging');
-      var items = doc.querySelectorAll('.menu-cleaner-reorder-item');
+      let items = doc.querySelectorAll(SEL_REORDER_ITEM);
       for (var i = 0; i < items.length; i++) items[i].classList.remove('drag-over');
-      var dragSections = doc.querySelectorAll('.menu-cleaner-reorder-column-section');
+      let dragSections = doc.querySelectorAll(SEL_REORDER_COL_SECTION);
       for (var ds = 0; ds < dragSections.length; ds++) dragSections[ds].classList.remove('drag-over-section');
       if (touchGhost) {
         touchGhost.remove();
@@ -2602,9 +2685,9 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       dropTargetColumn = undefined;
     }
 
-    var reorderItems = doc.querySelectorAll('.menu-cleaner-reorder-item');
+    let reorderItems = doc.querySelectorAll(SEL_REORDER_ITEM);
     for (var r = 0; r < reorderItems.length; r++) {
-      var item = reorderItems[r];
+      let item = reorderItems[r];
 
       // ── Desktop pointer drag ─────────────────────────
       item.addEventListener('pointerdown', function(e) {
@@ -2638,11 +2721,11 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         }
 
         if (touchGhost) touchGhost.style.display = 'none';
-        var target = doc.elementFromPoint(e.clientX, e.clientY);
+        let target = doc.elementFromPoint(e.clientX, e.clientY);
         if (touchGhost) touchGhost.style.display = '';
 
-        var targetItem = target ? target.closest('.menu-cleaner-reorder-item') : null;
-        var allItems = doc.querySelectorAll('.menu-cleaner-reorder-item');
+        let targetItem = target ? target.closest('.menu-cleaner-reorder-item') : null;
+        let allItems = doc.querySelectorAll(SEL_REORDER_ITEM);
         for (var ai = 0; ai < allItems.length; ai++) {
           if (allItems[ai] === targetItem && allItems[ai] !== draggedItem && allItems[ai].dataset.group === draggedGroup) {
             allItems[ai].classList.add('drag-over');
@@ -2651,8 +2734,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           }
         }
         // Highlight empty column sections
-        var allSections = doc.querySelectorAll('.menu-cleaner-reorder-column-section');
-        var targetSection = target ? target.closest('.menu-cleaner-reorder-column-section') : null;
+        let allSections = doc.querySelectorAll(SEL_REORDER_COL_SECTION);
+        let targetSection = target ? target.closest('.menu-cleaner-reorder-column-section') : null;
         for (var asi = 0; asi < allSections.length; asi++) {
           if (allSections[asi] === targetSection && draggedItem && draggedItem.dataset.column !== allSections[asi].dataset.column) {
             allSections[asi].classList.add('drag-over-section');
@@ -2666,35 +2749,35 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         if (!draggedItem) return;
 
         if (touchGhost) touchGhost.style.display = 'none';
-        var target = doc.elementFromPoint(e.clientX, e.clientY);
+        let target = doc.elementFromPoint(e.clientX, e.clientY);
         if (touchGhost) touchGhost.style.display = '';
 
-        var targetItem = target ? target.closest('.menu-cleaner-reorder-item') : null;
+        let targetItem = target ? target.closest('.menu-cleaner-reorder-item') : null;
         if (targetItem && targetItem !== draggedItem && targetItem.dataset.group === draggedGroup) {
           targetItem.classList.remove('drag-over');
           dropTargetColumn = targetItem.dataset.column;
           doReorder(draggedIndex, parseInt(targetItem.dataset.index), draggedGroup);
         } else {
           // Check for cross-column drop into an empty section
-          var targetSection = target ? target.closest('.menu-cleaner-reorder-column-section') : null;
+          let targetSection = target ? target.closest('.menu-cleaner-reorder-column-section') : null;
           if (targetSection && draggedItem) {
-            var targetCol = -1;
-            var label = targetSection.querySelector('.menu-cleaner-reorder-column-label');
+            let targetCol = -1;
+            let label = targetSection.querySelector('.menu-cleaner-reorder-column-label');
             if (label) {
               if (label.textContent.indexOf('右栏') !== -1) targetCol = 1;
               else if (label.textContent.indexOf('左栏') !== -1) targetCol = 0;
             }
             if (targetCol >= 0 && draggedItem.dataset.column !== String(targetCol)) {
-              var sel = draggedItem.dataset.selector;
-              var gid = draggedGroup;
+              let sel = draggedItem.dataset.selector;
+              let gid = draggedGroup;
               setColumnInCache(sel, gid, targetCol);
-              var itemsArr = getReorderItems(gid);
-              var moved = null;
+              let itemsArr = getReorderItems(gid);
+              let moved = null;
               for (var mi2 = 0; mi2 < itemsArr.length; mi2++) {
                 if (itemsArr[mi2].selector === sel) { moved = itemsArr[mi2]; break; }
               }
               if (moved) {
-                var remainder = itemsArr.filter(function(it) { return it.selector !== sel; });
+                let remainder = itemsArr.filter(function(it) { return it.selector !== sel; });
                 remainder.push(moved);
                 settings.reorder[gid] = remainder.map(function(i) { return i.selector; });
                 saveSettings();
@@ -2716,12 +2799,12 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       item.addEventListener('pointercancel', function() { cleanupDrag(); });
 
       // ── Mobile touch ─────────────────────────────────
-      var supportsTouch = 'ontouchstart' in win || (win.navigator && win.navigator.maxTouchPoints > 0);
+      let supportsTouch = 'ontouchstart' in win || (win.navigator && win.navigator.maxTouchPoints > 0);
       if (supportsTouch) {
         item.addEventListener('touchstart', function(e) {
           if (e.touches.length !== 1) return;
           e.preventDefault();
-          var touch = e.touches[0];
+          let touch = e.touches[0];
           touchStartX = touch.clientX;
           touchStartY = touch.clientY;
           touchMoved = false;
@@ -2747,7 +2830,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           if (!draggedItem) return;
           e.preventDefault();
           touchMoved = true;
-          var touch = e.touches[0];
+          let touch = e.touches[0];
 
           if (touchGhost) {
             touchGhost.style.left = (touch.clientX - touchGhost.offsetWidth / 2) + 'px';
@@ -2755,12 +2838,12 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           }
 
           if (touchGhost) touchGhost.style.display = 'none';
-          var target = doc.elementFromPoint(touch.clientX, touch.clientY);
+          let target = doc.elementFromPoint(touch.clientX, touch.clientY);
           if (touchGhost) touchGhost.style.display = '';
 
-          var targetItem = target ? target.closest('.menu-cleaner-reorder-item') : null;
+          let targetItem = target ? target.closest('.menu-cleaner-reorder-item') : null;
 
-          var allItems = doc.querySelectorAll('.menu-cleaner-reorder-item');
+          let allItems = doc.querySelectorAll(SEL_REORDER_ITEM);
           for (var ai = 0; ai < allItems.length; ai++) {
             if (allItems[ai] === targetItem && allItems[ai] !== draggedItem && allItems[ai].dataset.group === draggedGroup) {
               allItems[ai].classList.add('drag-over');
@@ -2775,12 +2858,12 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           e.preventDefault();
 
           if (touchMoved) {
-            var touch = e.changedTouches[0];
+            let touch = e.changedTouches[0];
             if (touchGhost) touchGhost.style.display = 'none';
-            var target = doc.elementFromPoint(touch.clientX, touch.clientY);
+            let target = doc.elementFromPoint(touch.clientX, touch.clientY);
             if (touchGhost) touchGhost.style.display = '';
 
-            var targetItem = target ? target.closest('.menu-cleaner-reorder-item') : null;
+            let targetItem = target ? target.closest('.menu-cleaner-reorder-item') : null;
             if (targetItem && targetItem !== draggedItem && targetItem.dataset.group === draggedGroup) {
               targetItem.classList.remove('drag-over');
               dropTargetColumn = targetItem.dataset.column;
@@ -2796,9 +2879,9 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     }
 
     // Column-section drop targets for cross-column drag (pointer-based)
-    var sections = doc.querySelectorAll('.menu-cleaner-reorder-column-section');
+    let sections = doc.querySelectorAll(SEL_REORDER_COL_SECTION);
     for (var s = 0; s < sections.length; s++) {
-      var section = sections[s];
+      let section = sections[s];
 
       section.addEventListener('pointerenter', function() {
         if (draggedItem) this.classList.add('drag-over-section');
@@ -2812,11 +2895,11 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Popup positioning ───────────────────────────────────────────
   function positionPopup() {
-    var popup = doc.getElementById('menu-cleaner-popup');
+    let popup = doc.getElementById('menu-cleaner-popup');
     if (!popup) return;
-    var vh = win.innerHeight;
-    var vw = win.innerWidth;
-    var margin = 10;
+    let vh = win.innerHeight;
+    let vw = win.innerWidth;
+    let margin = 10;
 
     popup.style.maxHeight = '90vh';
     popup.style.maxWidth = Math.min(560, vw - margin * 2) + 'px';
@@ -2825,11 +2908,11 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     popup.style.left = '0';
     popup.style.transform = 'none';
 
-    var popupHeight = popup.offsetHeight;
-    var popupWidth = popup.offsetWidth;
+    let popupHeight = popup.offsetHeight;
+    let popupWidth = popup.offsetWidth;
 
-    var top = Math.max(margin, (vh - popupHeight) / 2.5);
-    var left = Math.max(margin, (vw - popupWidth) / 2);
+    let top = Math.max(margin, (vh - popupHeight) / 2.5);
+    let left = Math.max(margin, (vw - popupWidth) / 2);
 
     popup.style.top = top + 'px';
     popup.style.left = left + 'px';
@@ -2846,26 +2929,26 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function renderHideView() {
-    var body = doc.getElementById('menu-cleaner-popup-body');
+    let body = doc.getElementById('menu-cleaner-popup-body');
     if (!body) return;
 
     // Save expanded category state before rebuilding
-    var expandedGroups = {};
-    var existingBodies = doc.querySelectorAll('.menu-cleaner-category-body');
+    let expandedGroups = {};
+    let existingBodies = doc.querySelectorAll(SEL_CAT_BODY);
     for (var eb = 0; eb < existingBodies.length; eb++) {
       if (!existingBodies[eb].classList.contains('collapsed')) {
         expandedGroups[existingBodies[eb].dataset.group] = true;
       }
     }
 
-    var html = '';
+    let html = '';
 
     for (var g = 0; g < PANEL_GROUPS.length; g++) {
-      var group = PANEL_GROUPS[g];
-      var hcSelectors = new Set();
+      let group = PANEL_GROUPS[g];
+      let hcSelectors = new Set();
       for (var hi = 0; hi < group.items.length; hi++) hcSelectors.add(group.items[hi].selector);
-      var cached = (settings.discoveryCache[group.id] || []).filter(function(c) { return !hcSelectors.has(c.selector); });
-      var totalCount = group.items.length + cached.length;
+      let cached = (settings.discoveryCache[group.id] || []).filter(function(c) { return !hcSelectors.has(c.selector); });
+      let totalCount = group.items.length + cached.length;
 
       html += '<div class="menu-cleaner-category">';
       html += '<div class="menu-cleaner-category-header" data-group="' + escHtml(group.id) + '">' +
@@ -2876,8 +2959,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       html += '<div class="menu-cleaner-category-body collapsed" data-group="' + escHtml(group.id) + '">';
 
       for (var i = 0; i < group.items.length; i++) {
-        var item = group.items[i];
-        var isHidden = settings.hiddenSelectors[item.selector] === true;
+        let item = group.items[i];
+        let isHidden = settings.hiddenSelectors[item.selector] === true;
         html += '<div class="menu-cleaner-item" data-selector="' + escHtml(item.selector) + '">' +
                   '<span title="' + escHtml(item.selector) + '">' + escHtml(item.label) + '</span>' +
                   '<label class="menu-cleaner-toggle">' +
@@ -2890,8 +2973,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       if (cached.length > 0) {
         html += '<div class="menu-cleaner-separator">————由插件引入————</div>';
         for (var ci = 0; ci < cached.length; ci++) {
-          var citem = cached[ci];
-          var cHidden = settings.hiddenSelectors[citem.selector] === true;
+          let citem = cached[ci];
+          let cHidden = settings.hiddenSelectors[citem.selector] === true;
           html += '<div class="menu-cleaner-item menu-cleaner-item-discovered" data-selector="' + escHtml(citem.selector) + '">' +
                     '<span title="' + escHtml(citem.selector) + '">' + escHtml(citem.label) + '</span>' +
                     '<label class="menu-cleaner-toggle">' +
@@ -2908,10 +2991,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     body.innerHTML = html;
     // Restore expanded category state
     for (var eg in expandedGroups) {
-      var catBody = doc.querySelector('.menu-cleaner-category-body[data-group="' + eg + '"]');
+      let catBody = doc.querySelector('.menu-cleaner-category-body[data-group="' + eg + '"]');
       if (catBody) {
         catBody.classList.remove('collapsed');
-        var catArrow = catBody.parentElement.querySelector('.menu-cleaner-category-arrow');
+        let catArrow = catBody.parentElement.querySelector('.menu-cleaner-category-arrow');
         if (catArrow) catArrow.textContent = '▼';
       }
     }
@@ -2920,12 +3003,12 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function bindPopupEvents() {
-    var headers = doc.querySelectorAll('.menu-cleaner-category-header');
+    let headers = doc.querySelectorAll(SEL_CAT_HEADER);
     for (var h = 0; h < headers.length; h++) {
       headers[h].addEventListener('click', function() {
-        var groupId = this.dataset.group;
-        var body = doc.querySelector('.menu-cleaner-category-body[data-group="' + groupId + '"]');
-        var arrow = this.querySelector('.menu-cleaner-category-arrow');
+        let groupId = this.dataset.group;
+        let body = doc.querySelector('.menu-cleaner-category-body[data-group="' + groupId + '"]');
+        let arrow = this.querySelector('.menu-cleaner-category-arrow');
         if (body) {
           body.classList.toggle('collapsed');
           if (arrow) arrow.textContent = body.classList.contains('collapsed') ? '▶' : '▼';
@@ -2934,10 +3017,29 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       });
     }
 
+// Show all / Hide all per category
+    var showAllBtns = doc.querySelectorAll('.menu-cleaner-category-showall');
+    for (var _sa = 0; _sa < showAllBtns.length; _sa++) {
+      showAllBtns[_sa].addEventListener('click', function(e) {
+        e.stopPropagation();
+        var gid = this.dataset.group;
+        var cbs = doc.querySelectorAll('.menu-cleaner-category-body[data-group="' + gid + '"] .menu-cleaner-checkbox');
+        for (var _cb = 0; _cb < cbs.length; _cb++) { cbs[_cb].checked = true; cbs[_cb].dispatchEvent(new Event('change')); }
+      });
+    }
+    var hideAllBtns = doc.querySelectorAll('.menu-cleaner-category-hideall');
+    for (var _ha = 0; _ha < hideAllBtns.length; _ha++) {
+      hideAllBtns[_ha].addEventListener('click', function(e) {
+        e.stopPropagation();
+        var gid = this.dataset.group;
+        var cbs = doc.querySelectorAll('.menu-cleaner-category-body[data-group="' + gid + '"] .menu-cleaner-checkbox');
+        for (var _cb = 0; _cb < cbs.length; _cb++) { cbs[_cb].checked = false; cbs[_cb].dispatchEvent(new Event('change')); }
+      });
+    }
     var cbs = doc.querySelectorAll('.menu-cleaner-checkbox');
     for (var c = 0; c < cbs.length; c++) {
       cbs[c].addEventListener('change', function(e) {
-        var selector = e.target.dataset.selector;
+        let selector = e.target.dataset.selector;
         if (!selector) return;
         settings.hiddenSelectors[selector] = !e.target.checked;
         saveSettings();
@@ -2947,7 +3049,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     }
   }
 
-  var _escDiv = null;
+  let _escDiv = null;
   function escHtml(str) {
     if (!_escDiv) _escDiv = doc.createElement('div');
     _escDiv.textContent = str;
@@ -2956,23 +3058,23 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Reset ───────────────────────────────────────────────────────
   function resetAllReorders() {
-    var snap = settings.initialSnapshot;
+    let snap = settings.initialSnapshot;
     if (!snap) {
       captureInitialSnapshot();
     }
 
     for (var g = 0; g < PANEL_GROUPS.length; g++) {
-      var group = PANEL_GROUPS[g];
+      let group = PANEL_GROUPS[g];
       if (REORDER_GROUP_IDS.indexOf(group.id) === -1) continue;
 
       if (settings.initialSnapshot && settings.initialSnapshot[group.id]) {
-        var snapEntries = settings.initialSnapshot[group.id];
+        let snapEntries = settings.initialSnapshot[group.id];
         settings.reorder[group.id] = snapEntries.map(function(s) { return s.selector; });
 
-        var existingCache = settings.discoveryCache[group.id] || [];
+        let existingCache = settings.discoveryCache[group.id] || [];
         for (var s = 0; s < snapEntries.length; s++) {
           if (snapEntries[s].column !== undefined) {
-            var existing = null;
+            let existing = null;
             for (var e = 0; e < existingCache.length; e++) {
               if (existingCache[e].selector === snapEntries[s].selector) { existing = existingCache[e]; break; }
             }
@@ -2985,8 +3087,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         }
         settings.discoveryCache[group.id] = existingCache;
       } else {
-        var defaultOrder = group.items.map(function(i) { return i.selector; });
-        var cached = settings.discoveryCache[group.id] || [];
+        let defaultOrder = group.items.map(function(i) { return i.selector; });
+        let cached = settings.discoveryCache[group.id] || [];
         for (var c = 0; c < cached.length; c++) defaultOrder.push(cached[c].selector);
         settings.reorder[group.id] = defaultOrder;
       }
@@ -2996,7 +3098,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
     showSettingsPanel = false;
     activeTab = 'reorder';
-    var tabs = doc.querySelectorAll('.menu-cleaner-tab');
+    let tabs = doc.querySelectorAll('.menu-cleaner-tab');
     for (var t = 0; t < tabs.length; t++) {
       if (tabs[t].dataset.tab === 'reorder') {
         tabs[t].classList.add('active');
@@ -3024,8 +3126,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     win.setTimeout(function() { suppressObserver = false; }, 0);
 
     if (settings.rescanToast) {
-      var count = 0;
-      var dcKeys = Object.keys(settings.discoveryCache);
+      let count = 0;
+      let dcKeys = Object.keys(settings.discoveryCache);
       for (var dk = 0; dk < dcKeys.length; dk++) {
         count += settings.discoveryCache[dcKeys[dk]].length;
       }
@@ -3037,7 +3139,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   function setupKeyboard() {
     doc.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
-        var popup = doc.getElementById('menu-cleaner-popup');
+        let popup = doc.getElementById('menu-cleaner-popup');
         if (popup && popup.style.display !== 'none') {
           closePopup();
           return;
@@ -3049,7 +3151,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     });
 
     win.addEventListener('resize', function () {
-      var popup = doc.getElementById('menu-cleaner-popup');
+      let popup = doc.getElementById('menu-cleaner-popup');
       if (popup && popup.style.display !== 'none') {
         positionPopup();
       }
@@ -3063,21 +3165,21 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   // ── Slash commands ────────────────────────────────────────────
   function registerSlashCmd() {
     try {
-      var script = doc.createElement('script');
+      let script = doc.createElement('script');
       script.type = 'module';
       script.textContent =
         "import { registerSlashCommand } from '/scripts/slash-commands.js';\n" +
         // /menucleaner — open the panel
         "registerSlashCommand('menucleaner', function () {\n" +
-        "  var popup = document.getElementById('menu-cleaner-popup');\n" +
-        "  var backdrop = document.getElementById('menu-cleaner-backdrop');\n" +
+        "  let popup = document.getElementById('menu-cleaner-popup');\n" +
+        "  let backdrop = document.getElementById('menu-cleaner-backdrop');\n" +
         "  if (popup && backdrop) {\n" +
         "    backdrop.style.display = 'block';\n" +
         "    popup.style.display = 'flex';\n" +
         "  } else {\n" +
-        "    var btn = document.getElementById('menu-cleaner-btn');\n" +
+        "    let btn = document.getElementById('menu-cleaner-btn');\n" +
         "    if (btn && btn.offsetParent) { btn.click(); return ''; }\n" +
-        "    var settingsBtn = document.getElementById('menu-cleaner-open-popup');\n" +
+        "    let settingsBtn = document.getElementById('menu-cleaner-open-popup');\n" +
         "    if (settingsBtn) { settingsBtn.click(); }\n" +
         "  }\n" +
         "  return '';\n" +
@@ -3085,20 +3187,20 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         // /menucleanerdisable — disable the extension
         "registerSlashCommand('menucleanerdisable', function () {\n" +
         "  try {\n" +
-        "    var raw = localStorage.getItem('menu_cleaner_settings');\n" +
-        "    var settings = raw ? JSON.parse(raw) : {};\n" +
+        "    let raw = localStorage.getItem('menu_cleaner_settings');\n" +
+        "    let settings = raw ? JSON.parse(raw) : {};\n" +
         "    settings.enabled = false;\n" +
         "    localStorage.setItem('menu_cleaner_settings', JSON.stringify(settings));\n" +
         "    // Remove injected style elements\n" +
-        "    var ids = ['menu-cleaner-styles', 'menu-cleaner-hides'];\n" +
-        "    ids.forEach(function(id) { var el = document.getElementById(id); if (el) el.remove(); });\n" +
+        "    let ids = ['menu-cleaner-styles', 'menu-cleaner-hides'];\n" +
+        "    ids.forEach(function(id) { let el = document.getElementById(id); if (el) el.remove(); });\n" +
         "    // Hide our panel\n" +
-        "    var panel = document.getElementById('menu-cleaner-ext-panel');\n" +
+        "    let panel = document.getElementById('menu-cleaner-ext-panel');\n" +
         "    if (panel) panel.style.display = 'none';\n" +
-        "    var backdrop = document.getElementById('menu-cleaner-backdrop');\n" +
+        "    let backdrop = document.getElementById('menu-cleaner-backdrop');\n" +
         "    if (backdrop) backdrop.style.display = 'none';\n" +
         "    // Restore native block visibility\n" +
-        "    var nativeBlock = document.getElementById('rm_extensions_block');\n" +
+        "    let nativeBlock = document.getElementById('rm_extensions_block');\n" +
         "    if (nativeBlock) nativeBlock.style.display = '';\n" +
         "    alert('酒馆菜单管理器已禁用，请刷新页面。');\n" +
         "  } catch(e) { alert('禁用失败: ' + e.message); }\n" +
@@ -3134,13 +3236,13 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     }
 
     // MutationObserver: watch for new elements
-    var observeContainers = function () {
-      var targets = ['#extensions_settings', '#extensions_settings2', '#extensionsMenu'];
+    let observeContainers = function () {
+      let targets = ['#extensions_settings', '#extensions_settings2', '#extensionsMenu'];
       for (var t = 0; t < targets.length; t++) {
         (function(sel) {
-          var el = doc.querySelector(sel);
+          let el = doc.querySelector(sel);
           if (!el) return;
-          var observer = new win.MutationObserver(function (mutations) {
+          let observer = new win.MutationObserver(function (mutations) {
             if (suppressObserver) return;
             for (var m = 0; m < mutations.length; m++) {
               if (mutations[m].addedNodes.length > 0) {
@@ -3154,8 +3256,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       }
     };
 
-    var retries = 0;
-    var tryObserve = function () {
+    let retries = 0;
+    let tryObserve = function () {
       if (doc.querySelector('#extensions_settings')) {
         observeContainers();
       } else if (retries < 20) {
