@@ -1,8 +1,11 @@
-// ==酒馆菜单管理器 v1.2.0==
-// 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
-// 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
-// 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
-// ★ 面板宽度、缩放、自适应一键调整，尺寸自动保存 ★
+// ==酒馆菜单管理器：魔法面板模块（左下弹出 · 缩放）==
+// 模块职责：替换酒馆魔法棒按钮(#extensionsMenuButton)和左下选项按钮(#options_button)
+// 点击后在按钮左下方弹出面板，支持编辑模式将按钮移入"更多"折叠区
+// 图标与字体大小跟随面板缩放，设置自动保存
+// ★ 面板宽度可在此直接修改，手机端同步生效 ★
+// 注意：本模块与下方的"菜单精简"模块共存；本模块负责弹出面板，
+// 菜单精简模块负责更全面的隐藏/排序/分栏管理。两个模块通过
+// 各自的 localStorage key 独立存储设置，互不覆盖。
 
 var Store = (function() {
   try { var ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext && SillyTavern.getContext()) || null; var ctx_ok = ctx && ctx.extension_settings ? ctx : null; } catch(e) { var ctx_ok = null; }
@@ -174,6 +177,7 @@ const MENU_REGISTRY = [
   'use strict';
 
   // ── 双模持久化：ST 原生扩展 → extension_settings；酒馆助手 → localStorage ──
+  var _mpStore = Store.mp;
 
   // 面板水平位置微调（单位：像素），当前值已对齐按钮，一般无需修改
   const PANEL_OFFSET_X = 0;
@@ -234,6 +238,9 @@ const MENU_REGISTRY = [
     .magic-panel-body {
       flex:1; overflow-y:auto; padding:12px;
     }
+    .magic-panel-grid {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+    }
     .magic-panel-resize-handle {
       position:absolute; bottom:0; right:0;
       width:16px; height:16px;
@@ -244,16 +251,12 @@ const MENU_REGISTRY = [
     }
     .magic-panel-resize-handle:hover { opacity:0.7; }
     .magic-panel-btn {
-      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+      display:flex; flex-direction:column; align-items:center; gap:6px;
       padding:12px 6px; border-radius:8px;
       border:1px solid var(--SmartThemeBorderColor);
       cursor:pointer; min-height:64px; position:relative;
       background:rgba(255,255,255,0.03); color:var(--SmartThemeBodyColor,#ccc);
     }
-    .magic-panel-grid, .magic-panel-more-grid.expanded {
-      display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
-    }
-
     .magic-panel-btn:hover {
       background:rgba(255,255,255,0.08);
       border-color:var(--SmartThemeQuoteColor,#5bc0de);
@@ -287,19 +290,6 @@ const MENU_REGISTRY = [
     .magic-panel-more-grid.expanded {
       display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
     }
-    .magic-panel-scale-bar {
-      display:none; align-items:center; gap:8px;
-      padding:6px 14px; border-bottom:1px solid var(--SmartThemeBorderColor);
-      background:rgba(255,255,255,0.02);
-    }
-    .magic-panel-scale-bar.active { display:flex; }
-    .magic-panel-scale-bar .scale-label { font-size:13px; color:var(--SmartThemeBodyColor,#ccc); cursor:pointer; }
-    .magic-panel-scale-bar .magic-panel-scale-slider {
-      flex:1; height:4px; cursor:pointer; accent-color:var(--SmartThemeQuoteColor,#5bc0de);
-    }
-    .magic-panel-scale-bar .scale-value {
-      font-size:11px; color:var(--SmartThemeBodyColor,#888); min-width:32px; text-align:right;
-    }
     .magic-panel-save-bar {
       display:none; padding:10px; text-align:center;
       border-top:1px solid var(--SmartThemeBorderColor);
@@ -310,10 +300,6 @@ const MENU_REGISTRY = [
       background:var(--SmartThemeQuoteColor,#5bc0de); color:#fff;
       font-size:13px; cursor:pointer;
     }
-    .magic-panel-fit-btn, .magic-panel-scale-btn {
-      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
-    }
-    .magic-panel-fit-btn:hover, .magic-panel-scale-btn:hover { color:var(--SmartThemeQuoteColor,#5bc0de); }
     .magic-panel-sort-btn {
       cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
     }
@@ -341,7 +327,7 @@ const MENU_REGISTRY = [
   if (g.mp.skipChildClasses) c.skipChildClasses = g.mp.skipChildClasses;
   if (g.items) c.items = g.items.map(function(it) { return { selector: it.selector, label: it.label, icon: icons[it.selector] }; });
   return c;
-});
+});;
 
   class MagicPanel {
     constructor() {
@@ -376,25 +362,15 @@ const MENU_REGISTRY = [
     }
 
     createPanel() {
-      // Remove stale panel to pick up template changes on re-init
-      var oldWrap = this.rootDoc.querySelector('.magic-panel-wrapper');
-      if (oldWrap) oldWrap.remove();
-      {
+      if (!this.rootDoc.querySelector('.magic-panel-wrapper')) {
         const html = `
           <div class="magic-panel-wrapper" role="dialog" aria-label="酒馆菜单管理器">
             <div class="magic-panel">
               <div class="magic-panel-header">
                 <span class="magic-panel-title">酒馆菜单管理器</span>
-                <span class="magic-panel-fit-btn" role="button" aria-label="自适应大小"><i class="fa-solid fa-expand"></i></span>
-                <span class="magic-panel-scale-btn" role="button" aria-label="缩放"><i class="fa-solid fa-text-height"></i></span>
                 <span class="magic-panel-sort-btn" role="button" aria-label="排序"><i class="fa-solid fa-arrow-up-short-wide"></i></span>
                 <span class="magic-panel-edit-btn" role="button" aria-label="编辑模式"><i class="fa-solid fa-pen"></i></span>
                 <span class="magic-panel-settings-btn" role="button" aria-label="设置"><i class="fa-solid fa-cog"></i></span>
-              </div>
-              <div class="magic-panel-scale-bar">
-                <span class="scale-label">Aa</span>
-                <input type="range" class="magic-panel-scale-slider" min="60" max="150" value="100" step="5">
-                <span class="scale-value">100%</span>
               </div>
               <div class="magic-panel-body"><div data-content="tavern"></div></div>
               <div class="magic-panel-resize-handle"></div>
@@ -459,24 +435,6 @@ const MENU_REGISTRY = [
         // Open MenuCleaner's popup via Runtime bridge (MC registers at init)
         if (Runtime.openMenuCleanerPopup) { Runtime.openMenuCleanerPopup(); return; }
       });
-      this.scaleBtn = this.panel.querySelector('.magic-panel-scale-btn');
-      this.scaleBar = this.panel.querySelector('.magic-panel-scale-bar');
-      this.scaleSlider = this.panel.querySelector('.magic-panel-scale-slider');
-      this.scaleSliderVal = this.panel.querySelector('.scale-value');
-      this.scaleBtn.addEventListener('click', () => {
-        this.scaleBar.classList.toggle('active');
-      });
-      this.scaleSlider.addEventListener('input', () => {
-        const pct = parseInt(this.scaleSlider.value);
-        const scale = pct / 100;
-        this.panel.style.setProperty('--content-scale', scale);
-        this.scaleSliderVal.textContent = pct + '%';
-        Store.mp.set(STORAGE_CONTENT_SCALE, scale);
-      });
-      this.fitBtn = this.panel.querySelector('.magic-panel-fit-btn');
-      this.fitBtn.addEventListener('click', () => {
-        this.fitToContent();
-      });
       // Reposition panel on window resize
       this.rootDoc.defaultView.addEventListener('resize', () => {
         if (this.wrapper.classList.contains('active')) {
@@ -504,50 +462,6 @@ const MENU_REGISTRY = [
     initScale() {
       const saved = parseFloat(Store.mp.get(STORAGE_CONTENT_SCALE) || '1');
       this.panel.style.setProperty('--content-scale', saved);
-      // Sync scale bar slider if available
-      if (this.scaleSlider && this.scaleSliderVal) {
-        this.scaleSlider.value = Math.round(saved * 100);
-        this.scaleSliderVal.textContent = Math.round(saved * 100) + '%';
-      }
-    }
-    fitToContent() {
-      // Toggle: if already fitted, reset to default width
-      if (this._fittedSize) {
-        this.panel.style.width = '';
-        this.panel.style.height = '';
-        this._fittedSize = null;
-        Store.mp.set('magic_panel_size_' + this.activeMenu.key, null);
-        this.position();
-        return;
-      }
-      const body = this.panel.querySelector('.magic-panel-body');
-      if (!body) return;
-      var items = body.querySelectorAll('.magic-panel-btn');
-      if (!items.length) return;
-      // Calculate content-bounding dimensions
-      var maxW = 0, maxH = 0, gap = 8, padding = 24, headerH = this.panel.querySelector('.magic-panel-header')?.offsetHeight || 40;
-      items.forEach(function(b) {
-        maxW = Math.max(maxW, b.offsetWidth);
-        maxH = Math.max(maxH, b.offsetHeight);
-      });
-      var cols = 3;
-      var grid = body.querySelector('.magic-panel-grid');
-      if (grid) {
-        var gs = getComputedStyle(grid).gridTemplateColumns || '';
-        cols = Math.max(1, gs.split(' ').length);
-      }
-      var rows = Math.ceil(items.length / cols);
-      var fitW = maxW * cols + gap * (cols - 1) + padding;
-      var fitH = headerH + rows * maxH + gap * (rows - 1) + padding;
-      // Cap at viewport
-      var vw = (this.rootDoc.defaultView || window).innerWidth;
-      var vh = (this.rootDoc.defaultView || window).innerHeight;
-      fitW = Math.min(fitW, vw - 40);
-      fitH = Math.min(fitH, vh - 60);
-      this.panel.style.width = fitW + 'px';
-      this.panel.style.height = fitH + 'px';
-      this._fittedSize = true;
-      this.position();
     }
 
     blockOriginalMenus() {
@@ -623,7 +537,6 @@ const MENU_REGISTRY = [
       const buttons = [];
       const seen = new WeakSet();
       const seenIds = {};  // id-based dedup to prevent duplicate entries
-      const seenLabels = {}; // label-based dedup: one label per group
       const clickableSelector = '#hide-helper-wand-button, .list-group-item, .interactable, button, [role="button"]';
 
       const classText = (node) => {
@@ -679,8 +592,6 @@ const MENU_REGISTRY = [
           if (seenIds[id]) return;
           seenIds[id] = true;
         }
-        if (seenLabels[text]) return;
-        seenLabels[text] = true;
         buttons.push({
           label: text,
           iconClass: itemConfig?.icon || getIconClass(el, text, id),
@@ -743,7 +654,7 @@ const MENU_REGISTRY = [
       main.forEach(btn => {
         const sel = this.isEditing && this.editSelection.has(btn.id) ? ' selected' : '';
         html += `<div class="magic-panel-btn${sel}" data-btn-id="${btn.id}" data-idx="${buttons.indexOf(btn)}">
-          <span class="drag-handle">≡</span><span class="edit-check">✓</span><i class="${Runtime.escHtml(btn.iconClass)}"></i><span class="btn-label">${Runtime.escHtml(btn.label)}</span>
+          <span class="drag-handle">≡</span><span class="edit-check">✓</span><i class="${btn.iconClass}"></i><span class="btn-label">${btn.label}</span>
         </div>`;
       });
       html += '</div>';
@@ -755,7 +666,7 @@ const MENU_REGISTRY = [
         more.forEach(btn => {
           const sel = this.isEditing && this.editSelection.has(btn.id) ? ' selected' : '';
           html += `<div class="magic-panel-btn${sel}" data-btn-id="${btn.id}" data-idx="${buttons.indexOf(btn)}">
-            <span class="drag-handle">≡</span><span class="edit-check">✓</span><i class="${Runtime.escHtml(btn.iconClass)}"></i><span class="btn-label">${Runtime.escHtml(btn.label)}</span>
+            <span class="drag-handle">≡</span><span class="edit-check">✓</span><i class="${btn.iconClass}"></i><span class="btn-label">${btn.label}</span>
           </div>`;
         });
         html += '</div></div>';
@@ -809,7 +720,7 @@ const MENU_REGISTRY = [
       this.initDragHandlers();
       this.initResizeHandler();
       try {
-        var _sz = Store.mp.get('magic_panel_size_' + this.activeMenu.key);
+        var _sz = Store.mp.get('magic_panel_size');
         if (_sz && _sz.w) { this.panel.style.width = _sz.w; this.panel.style.height = _sz.h || ''; }
       } catch(e) {}
 
@@ -833,7 +744,7 @@ const MENU_REGISTRY = [
         var onUp = function() {
           self.rootDoc.removeEventListener('mousemove', onMove);
           self.rootDoc.removeEventListener('mouseup', onUp);
-          try { Store.mp.set('magic_panel_size_' + self.activeMenu.key, { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
+          try { Store.mp.set('magic_panel_size', { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
         };
         self.rootDoc.addEventListener('mousemove', onMove);
         self.rootDoc.addEventListener('mouseup', onUp);
@@ -852,7 +763,7 @@ const MENU_REGISTRY = [
         var onEnd = function() {
           self.rootDoc.removeEventListener('touchmove', onMove);
           self.rootDoc.removeEventListener('touchend', onEnd);
-          try { Store.mp.set('magic_panel_size_' + self.activeMenu.key, { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
+          try { Store.mp.set('magic_panel_size', { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
         };
         self.rootDoc.addEventListener('touchmove', onMove, { passive: false });
         self.rootDoc.addEventListener('touchend', onEnd);
@@ -994,6 +905,7 @@ const MENU_REGISTRY = [
   var doc = window.frameElement ? window.parent.document : document;
   var win = window.frameElement ? window.parent : window;
 
+  const STORAGE_KEY = 'menu_cleaner_settings';
   let autoIdSeq = 0;
   let activeTab = 'hide';
   let showSettingsPanel = false;
@@ -1009,7 +921,7 @@ const MENU_REGISTRY = [
   if (g.buttonId) c.buttonId = '#' + g.buttonId;
   if (g.mc.discovery) c.discovery = g.mc.discovery;
   return c;
-});
+});;
 
   // Groups that support reordering
   const REORDER_GROUP_IDS = ['extensionsSettings'];
@@ -1033,25 +945,18 @@ const MENU_REGISTRY = [
 
   let settings = {};
 
-
-  // ── Cached DOM helpers ──
-  function getExtPanel() { return doc.getElementById("menu-cleaner-ext-panel"); }
-  function getPopup() { return doc.getElementById("menu-cleaner-popup"); }
-  function getPopupBody() { return doc.getElementById("menu-cleaner-popup-body"); }
-  function getRmBlock() { return doc.getElementById("rm_extensions_block"); }
-
-
   function loadSettings() {
     try {
-      const saved = Store.mc.getAll();
-      if (saved && typeof saved === 'object' && Object.keys(saved).length) {
+      const raw = Store.mc.getAll();
+      if (raw) {
+        const saved = JSON.parse(raw);
         settings = Object.assign({}, defaultSettings, saved);
       } else {
         settings = Object.assign({}, defaultSettings);
       }
 
       // MagicPanel compatibility: never hide MagicPanel's own UI elements
-      // Ensure MP's own UI elements are never hidden by MC
+      // Runtime.MP_VISIBLE_SELECTORS merged into Runtime.MP_VISIBLE_SELECTORS
       for (var mv = 0; mv < Runtime.MP_VISIBLE_SELECTORS.length; mv++) {
         if (settings.hiddenSelectors[Runtime.MP_VISIBLE_SELECTORS[mv]] === true) delete settings.hiddenSelectors[Runtime.MP_VISIBLE_SELECTORS[mv]];
       }
@@ -2068,7 +1973,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Extensions panel ────────────────────────────────────────────
   function createExtensionsPanelDOM() {
-    if (getExtPanel()) return;
+    if (doc.getElementById('menu-cleaner-ext-panel')) return;
 
     var html =
       '<div id="menu-cleaner-ext-panel" class="drawer-content menu-cleaner-ext-panel">' +
@@ -2129,14 +2034,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   function syncPanelZIndex() {
 
 
-    var panel = getExtPanel();
+    var panel = doc.getElementById('menu-cleaner-ext-panel');
     if (!panel) return;
     // Inherit z-index from the native drawer-content that our panel replaces.
     // Some themes set aggressive z-index values; matching the native drawer
     // ensures our panel never ends up underneath themed elements.
     var sources = [
       doc.querySelector('#extensions-settings-button > .drawer-content'),
-      getRmBlock(),
+      doc.getElementById('rm_extensions_block'),
       doc.getElementById('extensions_settings')
     ];
     for (var i = 0; i < sources.length; i++) {
@@ -2149,11 +2054,11 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function syncPanelTheme() {
-    var panel = getExtPanel();
+    var panel = doc.getElementById('menu-cleaner-ext-panel');
     if (!panel) return;
 
     var sources = [
-      getRmBlock(),
+      doc.getElementById('rm_extensions_block'),
       doc.querySelector('#extensions-settings-button > .drawer-content'),
       doc.getElementById('extensions_settings'),
       doc.body
@@ -2190,10 +2095,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   function toggleExtensionsPanel() {
     extPanelVisible = !extPanelVisible;
-    var panel = getExtPanel();
+    var panel = doc.getElementById('menu-cleaner-ext-panel');
     if (!panel) {
       createExtensionsPanelDOM();
-      panel = getExtPanel();
+      panel = doc.getElementById('menu-cleaner-ext-panel');
       if (!panel) return;
     }
 
@@ -2220,7 +2125,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function positionExtensionsPanel() {
-    var panel = getExtPanel();
+    var panel = doc.getElementById('menu-cleaner-ext-panel');
     if (!panel) return;
     panel.style.maxHeight = '80vh';
     panel.style.overflow = 'auto';
@@ -2251,14 +2156,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     if (topbar) {
       var topbarNodes = topbar.querySelectorAll('#extensions_details, #third_party_extension_button, .checkbox_label.flexNoGap');
       for (var ti = 0; ti < topbarNodes.length; ti++) {
-        restoreRememberedNode(topbarNodes[ti], getRmBlock());
+        restoreRememberedNode(topbarNodes[ti], doc.getElementById('rm_extensions_block'));
       }
     }
 
     var nativeCol1 = doc.getElementById('extensions_settings');
     var nativeCol2 = doc.getElementById('extensions_settings2');
-    if (nativeCol1) restoreRememberedNode(nativeCol1, getRmBlock());
-    if (nativeCol2) restoreRememberedNode(nativeCol2, getRmBlock());
+    if (nativeCol1) restoreRememberedNode(nativeCol1, doc.getElementById('rm_extensions_block'));
+    if (nativeCol2) restoreRememberedNode(nativeCol2, doc.getElementById('rm_extensions_block'));
   }
 
   // ── UI: Entry in extensionsMenu ─────────────────────────────────
@@ -2314,7 +2219,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         applyNativeReorder('extensionsSettings');
       } else {
         clearAllHides();
-        var panel = getExtPanel();
+        var panel = doc.getElementById('menu-cleaner-ext-panel');
         if (panel) panel.style.display = 'none';
         extPanelVisible = false;
         returnElementsToNative();
@@ -2328,7 +2233,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Popup ───────────────────────────────────────────────────────
   function createPopupDOM() {
-    if (getPopup()) return;
+    if (doc.getElementById('menu-cleaner-popup')) return;
 
     var html =
       '<div id="menu-cleaner-backdrop" class="menu-cleaner-backdrop"></div>' +
@@ -2366,7 +2271,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     // Refresh discovery cache so newly injected extension buttons are visible
     refreshDiscoveryCache();
     doc.getElementById('menu-cleaner-backdrop').style.display = 'block';
-    getPopup().style.display = 'flex';
+    doc.getElementById('menu-cleaner-popup').style.display = 'flex';
     showSettingsPanel = false;
     updatePopupView();
     refreshPopup();
@@ -2387,7 +2292,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     var ghosts = doc.querySelectorAll('.menu-cleaner-ghost');
     for (var _g = 0; _g < ghosts.length; _g++) ghosts[_g].remove();
     var backdrop = doc.getElementById('menu-cleaner-backdrop');
-    var popup = getPopup();
+    var popup = doc.getElementById('menu-cleaner-popup');
     if (backdrop) backdrop.style.display = 'none';
     if (popup) popup.style.display = 'none';
     showSettingsPanel = false;
@@ -2454,7 +2359,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Settings panel view ─────────────────────────────────────────
   function renderSettingsView() {
-    var body = getPopupBody();
+    var body = doc.getElementById('menu-cleaner-popup-body');
     if (!body) return;
 
     var html =
@@ -2518,7 +2423,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Reorder view ────────────────────────────────────────────────
   function renderReorderView() {
-    var body = getPopupBody();
+    var body = doc.getElementById('menu-cleaner-popup-body');
     if (!body) return;
 
     var expanded = new Set();
@@ -2909,7 +2814,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Popup positioning ───────────────────────────────────────────
   function positionPopup() {
-    var popup = getPopup();
+    var popup = doc.getElementById('menu-cleaner-popup');
     if (!popup) return;
     var vh = win.innerHeight;
     var vw = win.innerWidth;
@@ -2942,19 +2847,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     renderHideView();
   }
 
-  
-  function buildHideItemHTML(item, isHidden, isDiscovered) {
-    var cls = 'menu-cleaner-item' + (isDiscovered ? ' menu-cleaner-item-discovered' : '');
-    return '<div class="' + cls + '" data-selector="' + Runtime.escHtml(item.selector) + '">' +
-      '<span title="' + Runtime.escHtml(item.selector) + '">' + Runtime.escHtml(item.label) + '</span>' +
-      '<label class="menu-cleaner-toggle">' +
-      '<input type="checkbox" class="menu-cleaner-checkbox" data-selector="' + Runtime.escHtml(item.selector) + '"' + (isHidden ? '' : ' checked') + '>' +
-      '<span class="menu-cleaner-slider"></span>' +
-      '</label>' +
-      '</div>';
-  }
-function renderHideView() {
-    var body = getPopupBody();
+  function renderHideView() {
+    var body = doc.getElementById('menu-cleaner-popup-body');
     if (!body) return;
 
     // Save expanded category state before rebuilding
@@ -2986,7 +2880,13 @@ function renderHideView() {
       for (var i = 0; i < group.items.length; i++) {
         var item = group.items[i];
         var isHidden = settings.hiddenSelectors[item.selector] === true;
-        html += buildHideItemHTML(item, isHidden, false);
+        html += '<div class="menu-cleaner-item" data-selector="' + Runtime.escHtml(item.selector) + '">' +
+                  '<span title="' + Runtime.escHtml(item.selector) + '">' + Runtime.escHtml(item.label) + '</span>' +
+                  '<label class="menu-cleaner-toggle">' +
+                    '<input type="checkbox" class="menu-cleaner-checkbox" data-selector="' + Runtime.escHtml(item.selector) + '"' + (isHidden ? '' : ' checked') + '>' +
+                    '<span class="menu-cleaner-slider"></span>' +
+                  '</label>' +
+                '</div>';
       }
 
       if (cached.length > 0) {
@@ -2994,7 +2894,13 @@ function renderHideView() {
         for (var ci = 0; ci < cached.length; ci++) {
           var citem = cached[ci];
           var cHidden = settings.hiddenSelectors[citem.selector] === true;
-          html += buildHideItemHTML(citem, cHidden, true);
+          html += '<div class="menu-cleaner-item menu-cleaner-item-discovered" data-selector="' + Runtime.escHtml(citem.selector) + '">' +
+                    '<span title="' + Runtime.escHtml(citem.selector) + '">' + Runtime.escHtml(citem.label) + '</span>' +
+                    '<label class="menu-cleaner-toggle">' +
+                      '<input type="checkbox" class="menu-cleaner-checkbox" data-selector="' + Runtime.escHtml(citem.selector) + '"' + (cHidden ? '' : ' checked') + '>' +
+                      '<span class="menu-cleaner-slider"></span>' +
+                    '</label>' +
+                  '</div>';
         }
       }
 
@@ -3043,6 +2949,7 @@ function renderHideView() {
     }
   }
 
+  var _escDiv = null;
 
   // ── Reset ───────────────────────────────────────────────────────
   function resetAllReorders() {
@@ -3127,7 +3034,7 @@ function renderHideView() {
   function setupKeyboard() {
     doc.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
-        var popup = getPopup();
+        var popup = doc.getElementById('menu-cleaner-popup');
         if (popup && popup.style.display !== 'none') {
           closePopup();
           return;
@@ -3139,7 +3046,7 @@ function renderHideView() {
     });
 
     win.addEventListener('resize', function () {
-      var popup = getPopup();
+      var popup = doc.getElementById('menu-cleaner-popup');
       if (popup && popup.style.display !== 'none') {
         positionPopup();
       }
@@ -3175,7 +3082,7 @@ function renderHideView() {
         // /menucleanerdisable — disable the extension
         "registerSlashCommand('menucleanerdisable', function () {\n" +
         "  try {\n" +
-        "    if (win.__mcDisable) { win.__mcDisable(); }\n" +
+        "    if (window.__mcDisable) { window.__mcDisable(); }\n" +
         "    else { console.error('[MenuCleaner] __mcDisable not available'); }\n" +
         "    // Remove injected style elements\n" +
         "    var ids = ['menu-cleaner-styles', 'menu-cleaner-hides'];\n" +
@@ -3296,7 +3203,7 @@ function renderHideView() {
     }, 3000);
   
   Runtime.openMenuCleanerPopup = openPopup;
-  Runtime.isMenuCleanerPopupOpen = function() { var p = doc.getElementById('menu-cleaner-popup'); return p && p.style.display !== 'none'; };
+  Runtime.isMenuCleanerPopupOpen = function() { var p = document.getElementById('menu-cleaner-popup'); return p && p.style.display !== 'none'; };
 }
 
   // Start when DOM is ready (parent page's DOM)
@@ -3306,5 +3213,5 @@ function renderHideView() {
     init();
   }
 
-  try { win.__mcDisable = function() { var s = Store.mc.getAll() || {}; s.enabled = false; Store.mc.setAll(s); }; } catch(e) {}
+  try { window.__mcDisable = function() { var s = Store.mc.getAll() || {}; s.enabled = false; Store.mc.setAll(s); }; } catch(e) {}
 })();
