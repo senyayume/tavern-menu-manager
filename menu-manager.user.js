@@ -213,6 +213,7 @@
       menuId: 'options',
       allowHidden: true,
       defaultIcon: 'fa-solid fa-wand-magic-sparkles',
+      selectors: '.interactable',
       items: [
         { selector: '#option_toggle_AN', label: '作者注释', icon: 'fa-solid fa-feather' },
         { selector: '#option_toggle_CFG', label: 'CFG缩放', icon: 'fa-solid fa-sliders' },
@@ -844,7 +845,12 @@
         { selector: '#option_regenerate',          label: '重新生成' },
         { selector: '#option_impersonate',         label: 'AI帮答' },
         { selector: '#option_continue',            label: '继续' }
-      ]
+      ],
+      discovery: {
+        containers: ['#options'],
+        itemMatch: '.interactable',
+        labelIn: 'span'
+      }
     },
     {
       id: 'extensionsMenu',
@@ -1576,6 +1582,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           // Individual items have their own item.style.display check.
           var matchedElements = new Set();
           var items = child.querySelectorAll(group.discovery.itemMatch);
+          // Also check if the child itself matches (for containers where items ARE the children, e.g. #options)
+          if (items.length === 0 && child.matches && child.matches(group.discovery.itemMatch)) {
+            items = [child];
+          }
           for (var i = 0; i < items.length; i++) {
             var item = items[i];
             if (item.style.display === 'none') continue;
