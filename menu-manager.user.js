@@ -38,7 +38,6 @@
   const PANEL_WIDTH = 320;   // 默认 320，改大面板变宽，改小变窄
 
   const STORAGE_HIDDEN = 'magic_panel_hidden_buttons';
-const STORAGE_PINNED = 'magic_panel_pinned_buttons';
   const STORAGE_CONTENT_SCALE = 'magic_content_scale';
 
   function getRootDocument() {
@@ -52,9 +51,6 @@ const STORAGE_PINNED = 'magic_panel_pinned_buttons';
 
   function getHiddenButtons() { try { return _mpStore.get(STORAGE_HIDDEN) || []; } catch(e) { return []; } }
   function saveHiddenButtons(list) { try { _mpStore.set(STORAGE_HIDDEN, list); } catch(e) {} }
-  function getPinnedButtons() { try { return _mpStore.get(STORAGE_PINNED) || []; } catch(e) { return []; } }
-  function savePinnedButtons(list) { try { _mpStore.set(STORAGE_PINNED, list); } catch(e) {} }
-  function togglePinButton(id) { var p = getPinnedButtons(); var i = p.indexOf(id); if (i>=0) { p.splice(i,1); } else { p.push(id); } savePinnedButtons(p); return p; }
 
   // MenuCleaner cross-module: read hidden selectors from menu_cleaner_settings
   function getMcHiddenIds() {
@@ -182,14 +178,6 @@ const STORAGE_PINNED = 'magic_panel_pinned_buttons';
       background:var(--SmartThemeQuoteColor,#5bc0de); color:#fff;
       font-size:13px; cursor:pointer;
     }
-    .magic-panel-search {
-      display:none; width:100px; font-size:12px; padding:2px 6px;
-      border:1px solid var(--SmartThemeBorderColor,#555);
-      border-radius:4px; background:transparent; color:var(--SmartThemeBodyColor,#ccc);
-      margin:0 4px;
-    }
-    .magic-panel.is-sorting .magic-panel-search { display:none; }
-    .magic-panel-opacity-slider { width:60px; margin:0 4px; vertical-align:middle; cursor:pointer; accent-color:var(--SmartThemeQuoteColor,#5bc0de); }
     .magic-panel-sort-btn {
       cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
     }
@@ -254,17 +242,7 @@ const STORAGE_PINNED = 'magic_panel_pinned_buttons';
       this.injectStyles();
       this.createPanel();
       this.bindEvents();
-this.initScale();
-      // First-time guide
-      try {
-        if (!_mpStore.get('magic_panel_guide_shown')) {
-          var _g = this.rootDoc.createElement('div');
-          _g.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:100002;background:var(--SmartThemeBlurTintColor,#222);border:1px solid var(--SmartThemeBorderColor,#555);border-radius:12px;padding:24px;max-width:320px;text-align:center;color:var(--SmartThemeBodyColor,#ccc);font-size:14px;box-shadow:0 8px 32px rgba(0,0,0,0.5);';
-          _g.innerHTML = '<div style="font-size:32px;margin-bottom:8px;">\uD83C\uDF7A</div><div style="font-weight:bold;font-size:16px;margin-bottom:8px;">\u9152\u9986\u83dc\u5355\u7ba1\u7406\u5668</div><div style="margin-bottom:12px;">\u70b9\u51fb <b>\u270f\ufe0f</b> \u7f16\u8f91\u9690\u85cf\u6309\u94ae<br>\u70b9\u51fb <b>\u21c5</b> \u62d6\u62fd\u6392\u5e8f\u6309\u94ae<br>\u70b9\u51fb <b>\u2699\ufe0f</b> \u6253\u5f00\u83dc\u5355\u7cbe\u7b80\u8bbe\u7f6e</div><button class="menu_button" style="margin-top:4px;">\u77e5\u9053\u4e86</button>';
-          _g.querySelector('button').addEventListener('click', function() { _g.remove(); _mpStore.set('magic_panel_guide_shown', true); });
-          this.rootDoc.body.appendChild(_g);
-        }
-      } catch(e) {}
+      this.initScale();
       this.blockOriginalMenus();
       this.ensureMenuBindings();
 
@@ -291,8 +269,6 @@ this.initScale();
             <div class="magic-panel">
               <div class="magic-panel-header">
                 <span class="magic-panel-title">酒馆菜单管理器</span>
-                <input class="magic-panel-search" type="text" placeholder="筛选按钮..." aria-label="搜索按钮">
-                <input class="magic-panel-opacity-slider" type="range" min="0.3" max="1" step="0.05" value="1" aria-label="面板透明度">
                 <span class="magic-panel-sort-btn" role="button" aria-label="排序"><i class="fa-solid fa-arrow-up-short-wide"></i></span>
                 <span class="magic-panel-edit-btn" role="button" aria-label="编辑模式"><i class="fa-solid fa-pen"></i></span>
                 <span class="magic-panel-settings-btn" role="button" aria-label="设置"><i class="fa-solid fa-cog"></i></span>
@@ -331,15 +307,6 @@ this.initScale();
           this.close();
         }
       });
-var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
-      if (_opSlider) {
-        var _savedOp = _mpStore.get('magic_panel_opacity');
-        if (_savedOp) { _opSlider.value = _savedOp; this.panel.style.opacity = _savedOp; }
-        _opSlider.addEventListener('input', function() {
-          this.panel.style.opacity = e.target.value;
-          _mpStore.set('magic_panel_opacity', e.target.value);
-        }.bind(this));
-      }
       this.sortBtn.addEventListener('click', () => {
         if (this.isEditing) return;
         if (this.isSorting) {
@@ -356,10 +323,7 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
         this.isEditing = !this.isEditing;
         this.editBtn.classList.toggle('editing', this.isEditing);
         this.saveBar.classList.toggle('active', this.isEditing);
-        if (this.isEditing) {
-          this.editSelection = new Set(getHiddenButtons());
-          this.editBtn.title = '编辑模式 (' + getHiddenButtons().length + ' 个已隐藏)';
-        }
+        if (this.isEditing) this.editSelection = new Set(getHiddenButtons());
         this.render();
       });
       this.saveBtn.addEventListener('click', () => {
@@ -369,14 +333,6 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
         this.saveBar.classList.remove('active');
         this.render();
       });
-// Ctrl+M shortcut
-      this.rootDoc.addEventListener('keydown', function(e) {
-        if (e.ctrlKey && e.key === 'm' && !e.repeat) {
-          e.preventDefault();
-          if (this.wrapper.classList.contains('active')) this.close();
-          else this.open();
-        }
-      }.bind(this));
       this.settingsBtn.addEventListener('click', () => {
         // Open MenuCleaner's settings popup via its injected button
         var openBtn = this.rootDoc.getElementById('menu-cleaner-open-popup');
@@ -569,15 +525,6 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
           extract(child);
         });
       }
-      // Pinned buttons first
-      var _pinArr = (typeof getPinnedButtons === 'function') ? getPinnedButtons() : [];
-      if (_pinArr.length > 0) {
-        var _pinMap = {};
-        for (var _pi = 0; _pi < _pinArr.length; _pi++) _pinMap[_pinArr[_pi]] = true;
-        buttons.sort(function(a,b) {
-          return (_pinMap[b.id] ? 1 : 0) - (_pinMap[a.id] ? 1 : 0);
-        });
-      }
       // Apply stored reorder from dedicated localStorage key
       try {
         var _orderArr = _mpStore.get('magic_panel_order_' + config.key);
@@ -600,7 +547,6 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
     }
 
     render() {
-      const self = this;
       const buttons = this.collectButtons();
       const mcHidden = getMcHiddenIds();
       const mpHidden = getHiddenButtons();
@@ -618,7 +564,7 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
       main.forEach(btn => {
         const sel = this.isEditing && this.editSelection.has(btn.id) ? ' selected' : '';
         html += `<div class="magic-panel-btn${sel}" data-btn-id="${btn.id}" data-idx="${buttons.indexOf(btn)}">
-          <span class="drag-handle">≡</span><span class="edit-check">✓</span><span class="pin-star">☆</span><i class="${btn.iconClass}"></i><span class="btn-label">${btn.label}</span>
+          <span class="drag-handle">≡</span><span class="edit-check">✓</span><i class="${btn.iconClass}"></i><span class="btn-label">${btn.label}</span>
         </div>`;
       });
       html += '</div>';
@@ -630,7 +576,7 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
         more.forEach(btn => {
           const sel = this.isEditing && this.editSelection.has(btn.id) ? ' selected' : '';
           html += `<div class="magic-panel-btn${sel}" data-btn-id="${btn.id}" data-idx="${buttons.indexOf(btn)}">
-            <span class="drag-handle">≡</span><span class="edit-check">✓</span><span class="pin-star">☆</span><i class="${btn.iconClass}"></i><span class="btn-label">${btn.label}</span>
+            <span class="drag-handle">≡</span><span class="edit-check">✓</span><i class="${btn.iconClass}"></i><span class="btn-label">${btn.label}</span>
           </div>`;
         });
         html += '</div></div>';
@@ -680,30 +626,7 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
           }
         });
       });
-// Search/filter
-      self.panel.querySelectorAll('.pin-star').forEach(function(s) {
-        s.addEventListener('click', function(e) {
-          e.stopPropagation();
-          var btnEl = this.closest('.magic-panel-btn');
-          var id = btnEl.dataset.btnId;
-          togglePinButton(id);
-          self.render();
-        });
-      });
-      var _searchInput = this.content.parentElement.querySelector('.magic-panel-search');
-      if (_searchInput) {
-        _searchInput.style.display = this.isEditing ? 'none' : 'inline-block';
-        _searchInput.addEventListener('input', function() {
-          var q = this.value.toLowerCase().trim();
-          var btns = self.panel.querySelectorAll('.magic-panel-btn');
-          for (var _bi = 0; _bi < btns.length; _bi++) {
-            var label = (btns[_bi].querySelector('.btn-label') || {}).textContent || '';
-            btns[_bi].style.display = (!q || label.toLowerCase().includes(q)) ? '' : 'none';
-          }
-          self.position();
-        });
-      }
-      
+
       this.initDragHandlers();
       this.initResizeHandler();
       try {
@@ -1302,7 +1225,7 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
 /* ── Drag Handle ─────────────────────────────────── */
 .menu-cleaner-drag-handle {
   cursor: grab;
-  color: var(--SmartThemeBodyColor,#ccc);
+  color: #666;
   font-size: 1.1em;
   letter-spacing: -2px;
   user-select: none;
@@ -1310,7 +1233,7 @@ var _opSlider = this.panel.querySelector('.magic-panel-opacity-slider');
   transition: color 0.15s;
 }
 
-.menu-cleaner-drag-handle:hover { color: var(--SmartThemeQuoteColor,#5bc0de); }
+.menu-cleaner-drag-handle:hover { color: #aaa; }
 .menu-cleaner-drag-handle:active { cursor: grabbing; }
 
 /* ── Drag States ─────────────────────────────────── */
@@ -3011,25 +2934,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       });
     }
 
-// Show all / Hide all per category
-    var showAllBtns = doc.querySelectorAll('.menu-cleaner-category-showall');
-    for (var _sa = 0; _sa < showAllBtns.length; _sa++) {
-      showAllBtns[_sa].addEventListener('click', function(e) {
-        e.stopPropagation();
-        var gid = this.dataset.group;
-        var cbs = doc.querySelectorAll('.menu-cleaner-category-body[data-group="' + gid + '"] .menu-cleaner-checkbox');
-        for (var _cb = 0; _cb < cbs.length; _cb++) { cbs[_cb].checked = true; cbs[_cb].dispatchEvent(new Event('change')); }
-      });
-    }
-    var hideAllBtns = doc.querySelectorAll('.menu-cleaner-category-hideall');
-    for (var _ha = 0; _ha < hideAllBtns.length; _ha++) {
-      hideAllBtns[_ha].addEventListener('click', function(e) {
-        e.stopPropagation();
-        var gid = this.dataset.group;
-        var cbs = doc.querySelectorAll('.menu-cleaner-category-body[data-group="' + gid + '"] .menu-cleaner-checkbox');
-        for (var _cb = 0; _cb < cbs.length; _cb++) { cbs[_cb].checked = false; cbs[_cb].dispatchEvent(new Event('change')); }
-      });
-    }
     var cbs = doc.querySelectorAll('.menu-cleaner-checkbox');
     for (var c = 0; c < cbs.length; c++) {
       cbs[c].addEventListener('change', function(e) {
