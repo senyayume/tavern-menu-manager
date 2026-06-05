@@ -1225,7 +1225,7 @@
 /* ── Drag Handle ─────────────────────────────────── */
 .menu-cleaner-drag-handle {
   cursor: grab;
-  color: #666;
+  color: var(--SmartThemeBodyColor,#666);
   font-size: 1.1em;
   letter-spacing: -2px;
   user-select: none;
@@ -1233,7 +1233,7 @@
   transition: color 0.15s;
 }
 
-.menu-cleaner-drag-handle:hover { color: #aaa; }
+.menu-cleaner-drag-handle:hover { color: var(--SmartThemeQuoteColor,#aaa); }
 .menu-cleaner-drag-handle:active { cursor: grabbing; }
 
 /* ── Drag States ─────────────────────────────────── */
