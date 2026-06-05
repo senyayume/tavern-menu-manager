@@ -89,6 +89,17 @@ tavern-menu-manager/
 
 ## 📋 更新日志
 
+### v1.1.4 (2025-06-05)
+
+**变更**
+- 存储层统一：`magicStore()` 合并为共享 `Store` 对象（`mp` + `mc` 命名空间），两个模块共享统一持久化接口
+  - `_mpStore.get/set` → `Store.mp.get/set`
+  - `loadSettings/saveSettings` → `Store.mc.getAll/setAll`
+  - `getMcHiddenIds()` → `Store.mc.getHiddenSelectors()`
+  - 斜杠命令 `/menucleanerdisable` → `window.__mcDisable`
+  - 保留一层兼容别名 `var _mpStore = Store.mp;`，业务代码不再直接依赖
+- `magicStore()` 已移除
+
 ### v1.1.3 (2025-06-05)
 
 **修复**

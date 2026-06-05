@@ -7,29 +7,37 @@
 // 菜单精简模块负责更全面的隐藏/排序/分栏管理。两个模块通过
 // 各自的 localStorage key 独立存储设置，互不覆盖。
 
+
+// ── Shared Store Layer (mp=MagicPanel, mc=MenuCleaner) ──
+var Store = (function() {
+  try { var ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext && SillyTavern.getContext()) || null; var ctx_ok = ctx && ctx.extension_settings ? ctx : null; } catch(e) { var ctx_ok = null; }
+  var ls = (function() { try { return window.frameElement ? window.parent.localStorage : window.localStorage; } catch(e) { return null; } })();
+  var _mp = {
+    get: function(k) { try { return ctx_ok ? JSON.parse(JSON.stringify(ctx_ok.extension_settings[k])) : JSON.parse(ls.getItem(k) || 'null'); } catch(e) { return null; } },
+    set: function(k, v) { try { if (ctx_ok) { ctx_ok.extension_settings[k] = v; ctx_ok.saveSettingsDebounced(); } else { ls.setItem(k, JSON.stringify(v)); } } catch(e) {} }
+  };
+  var _mc = {
+    getAll: function() { try { return JSON.parse(ls.getItem('menu_cleaner_settings') || '{}'); } catch(e) { return null; } },
+    setAll: function(o) { try { ls.setItem('menu_cleaner_settings', JSON.stringify(o)); } catch(e) {} },
+    getHiddenSelectors: function() {
+      try {
+        var hs = JSON.parse(ls.getItem('menu_cleaner_settings') || '{}').hiddenSelectors || {};
+        var keys = Object.keys(hs).filter(function(k) { return hs[k]; });
+        var r = keys.slice();
+        for (var i = 0; i < keys.length; i++) { if (keys[i][0] === '#') r.push(keys[i].substring(1)); }
+        return r;
+      } catch(e) { return []; }
+    }
+  };
+  return { mp: _mp, mc: _mc };
+})();
+
 (function() {
   'use strict';
 
   // ── 双模持久化：ST 原生扩展 → extension_settings；酒馆助手 → localStorage ──
-  function magicStore() {
-    var _s = { type: 'ls', ls: null };
-    try {
-      var _ctx = (typeof SillyTavern !== 'undefined' && SillyTavern.getContext && SillyTavern.getContext()) || null;
-      if (_ctx && _ctx.extension_settings) {
-        _s.type = 'st';
-        _s.ctx = _ctx;
-        _s.save = function() { try { _ctx.saveSettingsDebounced(); } catch(e) {} };
-      }
-    } catch(e) {}
-    if (_s.type === 'ls') {
-      _s.ls = window.frameElement ? window.parent.localStorage : window.localStorage;
-    }
-    return {
-      get: function(k) { try { return _s.type === 'st' ? _s.ctx.extension_settings[k] : JSON.parse(_s.ls.getItem(k) || 'null'); } catch(e) { return null; } },
-      set: function(k, v) { try { if (_s.type === 'st') { _s.ctx.extension_settings[k] = v; _s.save(); } else { _s.ls.setItem(k, JSON.stringify(v)); } } catch(e) {} }
-    };
-  }
-  var _mpStore = magicStore();
+  // Shared Store defined at file scope
+  var _mpStore = Store.mp;
 
   // 面板水平位置微调（单位：像素），当前值已对齐按钮，一般无需修改
   const PANEL_OFFSET_X = 0;
@@ -49,27 +57,11 @@
     return document;
   }
 
-  function getHiddenButtons() { try { return _mpStore.get(STORAGE_HIDDEN) || []; } catch(e) { return []; } }
-  function saveHiddenButtons(list) { try { _mpStore.set(STORAGE_HIDDEN, list); } catch(e) {} }
+  function getHiddenButtons() { try { return Store.mp.get(STORAGE_HIDDEN) || []; } catch(e) { return []; } }
+  function saveHiddenButtons(list) { try { Store.mp.set(STORAGE_HIDDEN, list); } catch(e) {} }
 
   // MenuCleaner cross-module: read hidden selectors from menu_cleaner_settings
-  function getMcHiddenIds() {
-    try {
-      // Use parent localStorage when in iframe, matching MenuCleaner's storage target
-      var storage = window.frameElement ? window.parent.localStorage : localStorage;
-      const raw = storage.getItem('menu_cleaner_settings');
-      if (!raw) return [];
-      const mc = JSON.parse(raw);
-      const hs = mc.hiddenSelectors || {};
-      var keys = Object.keys(hs).filter(function(k) { return hs[k] === true; });
-      // Also include versions without # prefix for cross-module ID matching
-      var result = keys.slice();
-      for (var i = 0; i < keys.length; i++) {
-        if (keys[i].charAt(0) === '#') result.push(keys[i].substring(1));
-      }
-      return result;
-    } catch(e) { return []; }
-  }
+  function getMcHiddenIds() { return Store.mc.getHiddenSelectors(); }
 
   const panelCSS = `
     .magic-panel-wrapper {
@@ -371,7 +363,7 @@
     }
 
     initScale() {
-      const saved = parseFloat(_mpStore.get(STORAGE_CONTENT_SCALE) || '1');
+      const saved = parseFloat(Store.mp.get(STORAGE_CONTENT_SCALE) || '1');
       this.panel.style.setProperty('--content-scale', saved);
     }
 
@@ -528,7 +520,7 @@
       }
       // Apply stored reorder from dedicated localStorage key
       try {
-        var _orderArr = _mpStore.get('magic_panel_order_' + config.key);
+        var _orderArr = Store.mp.get('magic_panel_order_' + config.key);
         if (_orderArr && Array.isArray(_orderArr)) {
           if (_orderArr && _orderArr.length > 0) {
             var _orderMap = {};
@@ -631,7 +623,7 @@
       this.initDragHandlers();
       this.initResizeHandler();
       try {
-        var _sz = _mpStore.get('magic_panel_size');
+        var _sz = Store.mp.get('magic_panel_size');
         if (_sz && _sz.w) { this.panel.style.width = _sz.w; this.panel.style.height = _sz.h || ''; }
       } catch(e) {}
 
@@ -655,7 +647,7 @@
         var onUp = function() {
           self.rootDoc.removeEventListener('mousemove', onMove);
           self.rootDoc.removeEventListener('mouseup', onUp);
-          try { _mpStore.set('magic_panel_size', { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
+          try { Store.mp.set('magic_panel_size', { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
         };
         self.rootDoc.addEventListener('mousemove', onMove);
         self.rootDoc.addEventListener('mouseup', onUp);
@@ -674,7 +666,7 @@
         var onEnd = function() {
           self.rootDoc.removeEventListener('touchmove', onMove);
           self.rootDoc.removeEventListener('touchend', onEnd);
-          try { _mpStore.set('magic_panel_size', { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
+          try { Store.mp.set('magic_panel_size', { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
         };
         self.rootDoc.addEventListener('touchmove', onMove, { passive: false });
         self.rootDoc.addEventListener('touchend', onEnd);
@@ -779,7 +771,7 @@
         if (_bid) _order.push(_bid);
       }
       try {
-        _mpStore.set('magic_panel_order_' + this.activeMenu.key, _order);
+        Store.mp.set('magic_panel_order_' + this.activeMenu.key, _order);
       } catch(_e) { console.warn('[MagicPanel] saveSortOrder failed', _e); }
       // Exit sort mode
       this.exitSortMode();
@@ -949,7 +941,7 @@
 
   function loadSettings() {
     try {
-      const raw = win.localStorage.getItem(STORAGE_KEY);
+      const raw = Store.mc.getAll();
       if (raw) {
         const saved = JSON.parse(raw);
         settings = Object.assign({}, defaultSettings, saved);
@@ -984,13 +976,7 @@
     }
   }
 
-  function saveSettings() {
-    try {
-      win.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    } catch (e) {
-      console.warn('[酒馆菜单管理器] 保存设置失败', e);
-    }
-  }
+  function saveSettings() { Store.mc.setAll(settings); }
 
   function rememberNativeHome(el) {
     if (!el || !el.parentNode || nativeHomes.has(el)) return;
@@ -3095,10 +3081,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         // /menucleanerdisable — disable the extension
         "registerSlashCommand('menucleanerdisable', function () {\n" +
         "  try {\n" +
-        "    var raw = localStorage.getItem('menu_cleaner_settings');\n" +
-        "    var settings = raw ? JSON.parse(raw) : {};\n" +
-        "    settings.enabled = false;\n" +
-        "    localStorage.setItem('menu_cleaner_settings', JSON.stringify(settings));\n" +
+        "    if (window.__mcDisable) { window.__mcDisable(); }\n" +
+        "    else { console.error('[MenuCleaner] __mcDisable not available'); }\n" +
         "    // Remove injected style elements\n" +
         "    var ids = ['menu-cleaner-styles', 'menu-cleaner-hides'];\n" +
         "    ids.forEach(function(id) { var el = document.getElementById(id); if (el) el.remove(); });\n" +
@@ -3224,4 +3208,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   } else {
     init();
   }
+
+  try { window.__mcDisable = function() { var s = Store.mc.getAll() || {}; s.enabled = false; Store.mc.setAll(s); }; } catch(e) {}
 })();

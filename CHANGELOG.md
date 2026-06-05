@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.4] - 2025-06-05
+
+### Changed
+
+- **存储层统一**：`magicStore()` 合并为文件作用域的共享 `Store` 对象（`mp` + `mc` 双命名空间），MagicPanel 和 MenuCleaner 共享同一套持久化接口。
+  - MagicPanel —— 所有 `_mpStore.get/set` 改为 `Store.mp.get/set`（隐藏按钮、排序、面板尺寸、缩放）
+  - MenuCleaner —— `loadSettings` / `saveSettings` 改为 `Store.mc.getAll()` / `Store.mc.setAll()`
+  - 跨模块桥接 —— `getMcHiddenIds()` 改为 `Store.mc.getHiddenSelectors()`
+  - 斜杠命令 —— 注入代码走 `window.__mcDisable`
+  - 保留一行 `var _mpStore = Store.mp;` 方便旧引用排查，业务代码不再直接依赖
+- `magicStore()` 旧函数已移除。
+
+---
 ## [1.1.3] - 2025-06-05
 
 ### Fixed
