@@ -70,6 +70,11 @@ var Runtime = {
   ]
 };
 
+// ── Labels to exclude from both Magic Panel and Menu Cleaner ──
+// These buttons are injected by TauriTavern/SillyTavern and serve no
+// function when triggered from the panel (only close the panel).
+const EXCLUDED_LABELS = ['切换全屏'];
+
 // ── Unified Menu Registry (single source of truth for both controllers) ──
 const MENU_REGISTRY = [
   {
@@ -665,7 +670,7 @@ const MENU_REGISTRY = [
         const style = this.rootDoc.defaultView.getComputedStyle(el);
         if (!config.allowHidden && (style.display === 'none' || style.visibility === 'hidden')) return;
         const text = ((el.textContent || '').trim() || itemConfig?.label || '').trim();
-        if (!text) return;
+        if (!text || EXCLUDED_LABELS.includes(text)) return;
         const id = el.id || candidate.id || itemConfig?.selector || text;
         // Skip items hidden by MenuCleaner (cross-module awareness)
         var mcHidden = Runtime.getMcHiddenIds();
@@ -1801,6 +1806,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
       // Filter: exclude hardcoded items and their descendants
       var newItems = allDiscovered.filter(function(d) {
+        if (EXCLUDED_LABELS.indexOf(d.label) !== -1) return false;
         if (hardcodedSet.has(d.selector)) return false;
         var el = doc.querySelector(d.selector);
         if (el) {
@@ -2972,7 +2978,7 @@ function renderHideView() {
       var group = PANEL_GROUPS[g];
       var hcSelectors = new Set();
       for (var hi = 0; hi < group.items.length; hi++) hcSelectors.add(group.items[hi].selector);
-      var cached = (settings.discoveryCache[group.id] || []).filter(function(c) { return !hcSelectors.has(c.selector); });
+      var cached = (settings.discoveryCache[group.id] || []).filter(function(c) { return !hcSelectors.has(c.selector) && EXCLUDED_LABELS.indexOf(c.label) === -1; });
       var totalCount = group.items.length + cached.length;
 
       html += '<div class="menu-cleaner-category">';
