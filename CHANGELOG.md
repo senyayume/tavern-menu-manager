@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1] - 2025-06-04
+
+### Fixed
+
+- **拖拽期间按 Esc 导致 dragActive 永久锁定**：关闭弹窗时重置 dragActive 状态并清理拖拽 CSS 残留，防止自动重扫描功能永久停摆。
+- **loadSettings 过早清理扩展按钮配置**：扩展可能尚未注入 DOM 时，不再删除用户已保存的隐藏设置。
+
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).

@@ -959,11 +959,7 @@
 
       // Selectors injected by this plugin — don't clean them up even if not yet in DOM
       var SELF_INJECTED = ['#menu-cleaner-settings', '#menu-cleaner-btn'];
-      // Clean up stale entries
-      var hiddenKeys = Object.keys(settings.hiddenSelectors);
-      for (var hk = 0; hk < hiddenKeys.length; hk++) {
-        if (!doc.querySelector(hiddenKeys[hk]) && SELF_INJECTED.indexOf(hiddenKeys[hk]) === -1) delete settings.hiddenSelectors[hiddenKeys[hk]];
-      }
+      // Don't clean stale entries — extensions may not have injected their buttons yet
       var dcGroups = Object.keys(settings.discoveryCache);
       for (var dg = 0; dg < dcGroups.length; dg++) {
         settings.discoveryCache[dcGroups[dg]] = settings.discoveryCache[dcGroups[dg]].filter(function (c) {
@@ -2281,6 +2277,16 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function closePopup() {
+    // Clean up any drag state (Escape during drag)
+    dragActive = false;
+    var oldDragItems = doc.querySelectorAll('.menu-cleaner-reorder-item.dragging, .menu-cleaner-reorder-item.drag-over, .menu-cleaner-reorder-column-section.drag-over-section');
+    for (var _di = 0; _di < oldDragItems.length; _di++) {
+      oldDragItems[_di].classList.remove('dragging', 'drag-over');
+    }
+    oldDragItems = doc.querySelectorAll('.menu-cleaner-reorder-column-section.drag-over-section');
+    for (var _di2 = 0; _di2 < oldDragItems.length; _di2++) {
+      oldDragItems[_di2].classList.remove('drag-over-section');
+    }
     var ghosts = doc.querySelectorAll('.menu-cleaner-ghost');
     for (var _g = 0; _g < ghosts.length; _g++) ghosts[_g].remove();
     var backdrop = doc.getElementById('menu-cleaner-backdrop');
