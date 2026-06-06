@@ -5,6 +5,12 @@
 - **重复「关闭聊天」按钮**：魔法面板左下菜单中出现两个「关闭聊天」，假的只能关面板 → 增加 label 去重（`seenLabels`），同组同名按钮只保留 config 定义的那一个。
 - **「切换全屏」按钮屏蔽**：TauriTavern 注入的「切换全屏」按钮在面板和精简器中均无意义 → 通过 `EXCLUDED_LABELS` 在收集/发现/渲染三处过滤。
 - **扩展面板排序被打乱 / 扩展跑到左栏**：`loadSettings` 同时裁剪 `discoveryCache`（删掉 DOM 中不存在的条目）和 `reorder`，扩展懒加载时被删 → 列信息丢失 → 重回左栏。现已统一不裁剪，`discoveryCache` 保留列信息，`reorder` 保留排序，扩展不再"跑位"。
+- **严重性能问题（酒馆后台卡顿）**：
+  - 启动时大量扩展同时注入 → MutationObserver 反复触发 → 800ms 防抖后做全量 DOM 扫描 + 物理重排（`appendChild`）→ 浏览器 layout 持续重算 → 电脑变卡
+  - 修复：`doRescan` 只扫描有动态发现的组（`extensionsSettings/options/extensionsMenu`），跳过静态组；扫描结果无变化时跳过 `applyNativeReorder` 避免不必要 DOM 移动
+  - 修复：MutationObserver 移除 `#extensionsMenu`（不会动态加载）
+  - 修复：移除冗余的 `CHAT_CHANGED` 自动扫描（切换聊天不改扩展面板）
+  - 修复：`suppressObserver` 超时从 0ms 延长到 50ms，避免 DOM 操作被分批触发
 
 ---
 ## [1.2.0] - 2025-06-05

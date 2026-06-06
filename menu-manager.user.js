@@ -1785,10 +1785,12 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     return discovered;
   }
 
-  function refreshDiscoveryCache() {
+  function refreshDiscoveryCache(changedOnly) {
+    var filterSet = changedOnly ? changedOnly.split(',').reduce(function(s, id) { s[id.trim()] = true; return s; }, Object.create(null)) : null;
     for (var g = 0; g < PANEL_GROUPS.length; g++) {
       var group = PANEL_GROUPS[g];
       if (!group.discovery) continue;
+      if (filterSet && !filterSet[group.id]) continue;
       var allDiscovered = discoverItems(group);
       var hardcodedSet = new Set();
       for (var hi = 0; hi < group.items.length; hi++) hardcodedSet.add(group.items[hi].selector);
@@ -1856,6 +1858,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       // reorder list not mutated here — only user drag writes to reorder
     }
     saveSettings();
+    return true;
   }
 
   // ── Column cache helper ─────────────────────────────────────────
@@ -3094,10 +3097,12 @@ function renderHideView() {
     if (rescanTimer) { clearTimeout(rescanTimer); rescanTimer = null; }
 
     suppressObserver = true;
-    refreshDiscoveryCache();
-    applyNativeReorder('extensionsSettings');
-    if (!dragActive) refreshPopup();
-    win.setTimeout(function() { suppressObserver = false; }, 0);
+    var changed = refreshDiscoveryCache('extensionsSettings,options,extensionsMenu');
+    if (changed) {
+      applyNativeReorder('extensionsSettings');
+      if (!dragActive) refreshPopup();
+    }
+    win.setTimeout(function() { suppressObserver = false; }, 50);
 
     if (settings.rescanToast) {
       var count = 0;
@@ -3197,19 +3202,16 @@ function renderHideView() {
   function setupAutoRescan() {
     // SillyTavern event: chat/character changed
     try {
-      if (win.eventSource && win.event_types && win.event_types.CHAT_CHANGED) {
-        win.eventSource.on(win.event_types.CHAT_CHANGED, function () {
-          scheduleAutoRescan();
-        });
-        console.debug('[酒馆菜单管理器] 已注册 CHAT_CHANGED 自动重扫描');
-      }
+      // CHAT_CHANGED auto-rescan disabled: MutationObserver already covers
+      // the dynamic containers (#extensions_settings, #extensions_settings2).
+      // Chat switching doesn't add/remove extension panels, so this was redundant.
     } catch (e) {
       console.debug('[酒馆菜单管理器] 事件监听注册失败', e);
     }
 
     // MutationObserver: watch for new elements
     var observeContainers = function () {
-      var targets = ['#extensions_settings', '#extensions_settings2', '#extensionsMenu'];
+      var targets = ['#extensions_settings', '#extensions_settings2'];
       for (var t = 0; t < targets.length; t++) {
         (function(sel) {
           var el = doc.querySelector(sel);
