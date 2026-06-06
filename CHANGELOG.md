@@ -4,6 +4,7 @@
 
 - **重复「关闭聊天」按钮**：魔法面板左下菜单中出现两个「关闭聊天」，假的只能关面板 → 增加 label 去重（`seenLabels`），同组同名按钮只保留 config 定义的那一个。
 - **「切换全屏」按钮屏蔽**：TauriTavern 注入的「切换全屏」按钮在面板和精简器中均无意义 → 通过 `EXCLUDED_LABELS` 在收集/发现/渲染三处过滤。
+- **`/menucleanerdisable` 斜杠命令失效**：`registerSlashCmd()` 注入的 `<script type="module">` 在父页面全局作用域运行，引用的 `win` 是 IIFE2 局部变量 → 抛 ReferenceError。修复：注入脚本中改为 `window.__mcDisable`（函数通过 `win.__mcDisable` 正确挂在了父窗口上）。
 - **扩展面板排序被打乱 / 扩展跑到左栏**：`loadSettings` 同时裁剪 `discoveryCache`（删掉 DOM 中不存在的条目）和 `reorder`，扩展懒加载时被删 → 列信息丢失 → 重回左栏。现已统一不裁剪，`discoveryCache` 保留列信息，`reorder` 保留排序，扩展不再"跑位"。
 - **严重性能问题（酒馆后台卡顿）**：
   - 启动时大量扩展同时注入 → MutationObserver 反复触发 → 800ms 防抖后做全量 DOM 扫描 + 物理重排（`appendChild`）→ 浏览器 layout 持续重算 → 电脑变卡

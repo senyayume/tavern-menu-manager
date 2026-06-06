@@ -3166,7 +3166,7 @@ function renderHideView() {
         // /menucleanerdisable — disable the extension
         "registerSlashCommand('menucleanerdisable', function () {\n" +
         "  try {\n" +
-        "    if (win.__mcDisable) { win.__mcDisable(); }\n" +
+        "    if (window.__mcDisable) { window.__mcDisable(); }\n" +
         "    else { console.error('[MenuCleaner] __mcDisable not available'); }\n" +
         "    // Remove injected style elements\n" +
         "    var ids = ['menu-cleaner-styles', 'menu-cleaner-hides'];\n" +
