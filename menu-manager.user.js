@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.2.0==
+// ==酒馆菜单管理器 v1.2.1==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -1070,12 +1070,7 @@ const MENU_REGISTRY = [
           return doc.querySelector(c.selector);
         });
       }
-      var roGroups = Object.keys(settings.reorder);
-      for (var rg = 0; rg < roGroups.length; rg++) {
-        settings.reorder[roGroups[rg]] = settings.reorder[roGroups[rg]].filter(function (s) {
-          return doc.querySelector(s);
-        });
-      }
+      // reorder: never prune — items may not be in DOM yet
     } catch (e) {
       console.warn('[酒馆菜单管理器] 读取设置失败，使用默认值', e);
       settings = Object.assign({}, defaultSettings);
@@ -1864,16 +1859,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
       settings.discoveryCache[group.id] = newItems;
 
-      // Append newly discovered selectors to reorder list
-      if (REORDER_GROUP_IDS.indexOf(group.id) !== -1 && newItems.length > 0) {
-        if (!settings.reorder[group.id]) settings.reorder[group.id] = [];
-        var existing = new Set(settings.reorder[group.id]);
-        for (var ai = 0; ai < newItems.length; ai++) {
-          if (!existing.has(newItems[ai].selector)) {
-            settings.reorder[group.id].push(newItems[ai].selector);
-          }
-        }
-      }
+      // reorder list not mutated here — only user drag writes to reorder
     }
     saveSettings();
   }
