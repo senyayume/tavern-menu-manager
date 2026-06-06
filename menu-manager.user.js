@@ -1774,26 +1774,36 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           // each drawer (e.g. #qr--settings / #qr-assistant-settings) is discovered
           // separately instead of being lumped under the wrapper.
           if (hcChild.classList.contains('extension_container') && !hcChild.classList.contains('inline-drawer')) {
-            for (var wc = 0; wc < hcChild.children.length; wc++) {
-              var wrapperChild = hcChild.children[wc];
-              if (win.getComputedStyle(wrapperChild).display === 'none') continue;
-              var wHeader = wrapperChild.querySelector(group.discovery.hasHeader);
-              if (!wHeader) continue;
-              var wLabel = extractHeaderLabel(wHeader);
-              if (!wLabel) continue;
-              if (!wrapperChild.id) { wrapperChild.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
-              var wSelector = '#' + wrapperChild.id;
-              if (seen.has(wSelector)) {
-                if (wrapperChild.id && wrapperChild.id.indexOf('menu-cleaner-auto-') !== 0) {
-                  wrapperChild.id = 'menu-cleaner-auto-' + (autoIdSeq++);
-                  wSelector = '#' + wrapperChild.id;
-                  if (seen.has(wSelector)) continue;
-                } else { continue; }
+            var _isHc = false;
+            if (hcChild.id) {
+              for (var _hc = 0; _hc < group.items.length; _hc++) {
+                if ('#' + hcChild.id === group.items[_hc].selector) { _isHc = true; break; }
               }
-              seen.add(wSelector);
-              var wEntry = { selector: wSelector, label: wLabel };
-              if (columnIndex !== undefined) wEntry.column = columnIndex;
-              discovered.push(wEntry);
+            }
+            // Skip sub-scan for hardcoded containers — individual drawers inside would
+            // create duplicate entries pointing to the same underlying element.
+            if (!_isHc) {
+              for (var wc = 0; wc < hcChild.children.length; wc++) {
+                var wrapperChild = hcChild.children[wc];
+                if (win.getComputedStyle(wrapperChild).display === 'none') continue;
+                var wHeader = wrapperChild.querySelector(group.discovery.hasHeader);
+                if (!wHeader) continue;
+                var wLabel = extractHeaderLabel(wHeader);
+                if (!wLabel) continue;
+                if (!wrapperChild.id) { wrapperChild.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
+                var wSelector = '#' + wrapperChild.id;
+                if (seen.has(wSelector)) {
+                  if (wrapperChild.id && wrapperChild.id.indexOf('menu-cleaner-auto-') !== 0) {
+                    wrapperChild.id = 'menu-cleaner-auto-' + (autoIdSeq++);
+                    wSelector = '#' + wrapperChild.id;
+                    if (seen.has(wSelector)) continue;
+                  } else { continue; }
+                }
+                seen.add(wSelector);
+                var wEntry = { selector: wSelector, label: wLabel };
+                if (columnIndex !== undefined) wEntry.column = columnIndex;
+                discovered.push(wEntry);
+              }
             }
             continue;
           }
