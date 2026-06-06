@@ -1,3 +1,26 @@
+## [1.2.2] - 2025-06-06
+
+### Fixed
+
+- **`btn.id` 未转义导致属性注入风险**：`render()` 中 `data-btn-id="${btn.id}"` 未使用 `Runtime.escHtml` 转义 → 加入 `Runtime.escHtml(btn.id)`，消除 XSS 风险。
+- **`waitForButton()` 无限轮询**：按钮永远不存在时每 500ms 重试一次永不停止 → 加入 retries 上限（60 次 ≈ 30 秒），超时输出警告并停止。
+- **`injectSettingsEntry()` 无限重试**：`#extensions_settings` 不存在时同样无限轮询 → 加入 retries 上限（60 次），超时停止并警告。
+- **Escape 键关闭扩展面板只改变量不关 UI**：按 Esc 后 `extPanelVisible=false` 但面板 DOM 仍可见 → 追加 `returnElementsToNative()` + `panel.style.display='none'`，保持状态一致。
+- **`registerSlashCmd()` 热重载重复注册**：脚本重新加载时再次调用 `registerSlashCmd()`，会重复插入 module script → 加入 `win.__mcSlashRegistered` 守卫，仅注册一次。
+- **`ensureMenuBindings()` 对不存在的按钮也计入重试**：`.every()` 遇到不存在的 `buttonId` 返回 `false` 导致继续重试 30 秒 → 改为只检查已在 DOM 中的按钮。
+
+### Changed
+
+- **内置菜单图标整合**：12 个内置菜单项的图标（`icons` 映射表）合并到 `BUILTIN_OPTIONS_ITEMS` 的 `icon` 字段中。`MENU_CONFIGS` 不再查找外部映射表，改为直接读取 `it.icon`（无 icon 字段时 fallback `g.mp.defaultIcon`）。新增菜单项只需一行 `icon` 字段，不再需要维护两处。
+- **删除冗余 `applyNativeReorder` 调用**：`init()` 中 Step 6 与 Step 4 紧邻，中间无 DOM 变化，属重复调用 → 删除 Step 6，减少不必要的 DOM 操作。
+- **清除死循环骨架代码**：`REORDER_GROUP_IDS` 为单元素数组 `['extensionsSettings']`，所有 `for + if` 循环均排除了唯一的元素 → 循环体实际永不执行，已全部删除。
+
+### Security
+
+- **`escHtml` 增加单引号和反引号转义**：`'` → `&#39;`，`` ` `` → `` &#96; ``，增强防御深度。
+- **8 处空 `catch(e) {}` 添加日志**：Store 读写、Runtime 父页面访问、面板尺寸保存等关键路径增加 `console.debug` 输出，便于排查隐蔽错误。
+
+---
 ## [1.2.1] - 2025-06-06
 
 ### Fixed

@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.2.1==
+// ==酒馆菜单管理器 v1.2.2==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -9,11 +9,11 @@ var Store = (function() {
   var ls = (function() { try { return window.frameElement ? window.parent.localStorage : window.localStorage; } catch(e) { return null; } })();
   var _mp = {
     get: function(k) { try { return ctx_ok ? JSON.parse(JSON.stringify(ctx_ok.extension_settings[k])) : JSON.parse(ls.getItem(k) || 'null'); } catch(e) { return null; } },
-    set: function(k, v) { try { if (ctx_ok) { ctx_ok.extension_settings[k] = v; ctx_ok.saveSettingsDebounced(); } else { ls.setItem(k, JSON.stringify(v)); } } catch(e) {} }
+    set: function(k, v) { try { if (ctx_ok) { ctx_ok.extension_settings[k] = v; ctx_ok.saveSettingsDebounced(); } else { ls.setItem(k, JSON.stringify(v)); } } catch(e) { console.debug("[Store] set failed", e); } }
   };
   var _mc = {
     getAll: function() { try { return JSON.parse(ls.getItem('menu_cleaner_settings') || '{}'); } catch(e) { return null; } },
-    setAll: function(o) { try { ls.setItem('menu_cleaner_settings', JSON.stringify(o)); } catch(e) {} },
+    setAll: function(o) { try { ls.setItem('menu_cleaner_settings', JSON.stringify(o)); } catch(e) { console.debug('[Store] setAll failed', e); } },
     getHiddenSelectors: function() {
       try {
         var hs = JSON.parse(ls.getItem('menu_cleaner_settings') || '{}').hiddenSelectors || {};
@@ -34,29 +34,29 @@ var Runtime = {
     if (window.parent && window.parent.document) {
       try {
         if (window.parent.document.getElementById('extensionsMenuButton') || window.parent.document.getElementById('options_button')) return window.parent.document;
-      } catch(e) {}
+      } catch(e) { console.debug("[Runtime] parent doc access failed", e); }
     }
     return document;
   },
   escHtml: function(str) {
     if (typeof str !== 'string') str = String(str || '');
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/`/g,'&#96;');
   },
   getMcHiddenIds: function() { return Store.mc.getHiddenSelectors(); },
   // ── Shared built-in menu items (used by both controllers) ──
   BUILTIN_OPTIONS_ITEMS: [
-    { selector: '#option_toggle_AN',        label: '作者注释' },
-    { selector: '#option_toggle_CFG',       label: 'CFG缩放' },
-    { selector: '#option_toggle_logprobs',  label: '词符概率' },
-    { selector: '#option_new_bookmark',     label: '保存检查点' },
-    { selector: '#option_convert_to_group', label: '转换为群聊' },
-    { selector: '#option_start_new_chat',   label: '开始新聊天' },
-    { selector: '#option_close_chat',       label: '关闭聊天' },
-    { selector: '#option_select_chat',      label: '管理聊天文件' },
-    { selector: '#option_delete_mes',       label: '删除消息' },
-    { selector: '#option_regenerate',       label: '重新生成' },
-    { selector: '#option_impersonate',      label: 'AI帮答' },
-    { selector: '#option_continue',         label: '继续' }
+    { selector: '#option_toggle_AN',        label: '作者注释', icon: 'fa-solid fa-feather' },
+    { selector: '#option_toggle_CFG',       label: 'CFG缩放', icon: 'fa-solid fa-sliders' },
+    { selector: '#option_toggle_logprobs',  label: '词符概率', icon: 'fa-solid fa-chart-simple' },
+    { selector: '#option_new_bookmark',     label: '保存检查点', icon: 'fa-solid fa-bookmark' },
+    { selector: '#option_convert_to_group', label: '转换为群聊', icon: 'fa-solid fa-user-group' },
+    { selector: '#option_start_new_chat',   label: '开始新聊天', icon: 'fa-solid fa-comment-medical' },
+    { selector: '#option_close_chat',       label: '关闭聊天', icon: 'fa-solid fa-comment-slash' },
+    { selector: '#option_select_chat',      label: '管理聊天文件', icon: 'fa-solid fa-folder-open' },
+    { selector: '#option_delete_mes',       label: '删除消息', icon: 'fa-solid fa-trash' },
+    { selector: '#option_regenerate',       label: '重新生成', icon: 'fa-solid fa-rotate-right' },
+    { selector: '#option_impersonate',      label: 'AI帮答', icon: 'fa-solid fa-masks-theater' },
+    { selector: '#option_continue',         label: '继续', icon: 'fa-solid fa-forward' }
   ],
   // ── MenuCleaner popup control (registered by MC at init, called by MP) ──
   openMenuCleanerPopup: null,
@@ -191,7 +191,7 @@ const MENU_REGISTRY = [
 
 
   function getHiddenButtons() { try { return Store.mp.get(STORAGE_HIDDEN) || []; } catch(e) { return []; } }
-  function saveHiddenButtons(list) { try { Store.mp.set(STORAGE_HIDDEN, list); } catch(e) {} }
+  function saveHiddenButtons(list) { try { Store.mp.set(STORAGE_HIDDEN, list); } catch(e) { console.debug('[MP] saveHiddenButtons failed', e); } }
 
   // MenuCleaner cross-module: read hidden selectors from menu_cleaner_settings
   const panelCSS = `
@@ -339,12 +339,11 @@ const MENU_REGISTRY = [
   `;
 
   const MENU_CONFIGS = MENU_REGISTRY.filter(function(g) { return g.mp; }).map(function(g) {
-  var icons = { '#option_toggle_AN': 'fa-solid fa-feather', '#option_toggle_CFG': 'fa-solid fa-sliders', '#option_toggle_logprobs': 'fa-solid fa-chart-simple', '#option_new_bookmark': 'fa-solid fa-bookmark', '#option_convert_to_group': 'fa-solid fa-user-group', '#option_start_new_chat': 'fa-solid fa-comment-medical', '#option_close_chat': 'fa-solid fa-comment-slash', '#option_select_chat': 'fa-solid fa-folder-open', '#option_delete_mes': 'fa-solid fa-trash', '#option_regenerate': 'fa-solid fa-rotate-right', '#option_impersonate': 'fa-solid fa-masks-theater', '#option_continue': 'fa-solid fa-forward' };
   var c = { key: g.id, buttonId: g.buttonId, menuId: g.mp.menuId, defaultIcon: g.mp.defaultIcon, selectors: g.mp.selectors };
   if (g.mp.allowHidden) c.allowHidden = true;
   if (g.mp.skipChildIds) c.skipChildIds = g.mp.skipChildIds;
   if (g.mp.skipChildClasses) c.skipChildClasses = g.mp.skipChildClasses;
-  if (g.items) c.items = g.items.map(function(it) { return { selector: it.selector, label: it.label, icon: icons[it.selector] }; });
+  if (g.items) c.items = g.items.map(function(it) { return { selector: it.selector, label: it.label, icon: it.icon || g.mp.defaultIcon }; });
   return c;
 });
 
@@ -494,10 +493,14 @@ const MENU_REGISTRY = [
     }
 
     ensureMenuBindings() {
-      const allBound = MENU_CONFIGS.every(config => {
-        const btn = this.rootDoc.getElementById(config.buttonId);
-        return btn && btn.dataset.magicPanelBound === '1';
-      });
+      var allBound = true;
+      for (var _ec = 0; _ec < MENU_CONFIGS.length; _ec++) {
+        var btn = this.rootDoc.getElementById(MENU_CONFIGS[_ec].buttonId);
+        if (btn) {
+          if (btn.dataset.magicPanelBound !== '1') allBound = false;
+        }
+        // Button not in DOM yet — skip, don't count as failure
+      }
       if (allBound || this.bindRetries >= 60) return;
       this.bindRetries++;
       setTimeout(() => {
@@ -527,7 +530,12 @@ const MENU_REGISTRY = [
       }
       const body = this.panel.querySelector('.magic-panel-body');
       if (!body) return;
-      var items = body.querySelectorAll('.magic-panel-btn');
+      // Only count visible buttons: main grid + expanded more-grid
+      var grid = body.querySelector('.magic-panel-grid');
+      var moreGrid = body.querySelector('.magic-panel-more-grid.expanded');
+      var items = [];
+      if (grid) items = Array.from(grid.querySelectorAll('.magic-panel-btn'));
+      if (moreGrid) items = items.concat(Array.from(moreGrid.querySelectorAll('.magic-panel-btn')));
       if (!items.length) return;
       // Calculate content-bounding dimensions
       var maxW = 0, maxH = 0, gap = 8, padding = 24, headerH = this.panel.querySelector('.magic-panel-header')?.offsetHeight || 40;
@@ -536,7 +544,6 @@ const MENU_REGISTRY = [
         maxH = Math.max(maxH, b.offsetHeight);
       });
       var cols = 3;
-      var grid = body.querySelector('.magic-panel-grid');
       if (grid) {
         var gs = getComputedStyle(grid).gridTemplateColumns || '';
         cols = Math.max(1, gs.split(' ').length);
@@ -747,7 +754,7 @@ const MENU_REGISTRY = [
       let html = '<div class="magic-panel-grid">';
       main.forEach(btn => {
         const sel = this.isEditing && this.editSelection.has(btn.id) ? ' selected' : '';
-        html += `<div class="magic-panel-btn${sel}" data-btn-id="${btn.id}" data-idx="${buttons.indexOf(btn)}">
+        html += `<div class="magic-panel-btn${sel}" data-btn-id="${Runtime.escHtml(btn.id)}" data-idx="${buttons.indexOf(btn)}">
           <span class="drag-handle">≡</span><span class="edit-check">✓</span><i class="${Runtime.escHtml(btn.iconClass)}"></i><span class="btn-label">${Runtime.escHtml(btn.label)}</span>
         </div>`;
       });
@@ -759,7 +766,7 @@ const MENU_REGISTRY = [
           <div class="magic-panel-more-grid">`;
         more.forEach(btn => {
           const sel = this.isEditing && this.editSelection.has(btn.id) ? ' selected' : '';
-          html += `<div class="magic-panel-btn${sel}" data-btn-id="${btn.id}" data-idx="${buttons.indexOf(btn)}">
+          html += `<div class="magic-panel-btn${sel}" data-btn-id="${Runtime.escHtml(btn.id)}" data-idx="${buttons.indexOf(btn)}">
             <span class="drag-handle">≡</span><span class="edit-check">✓</span><i class="${Runtime.escHtml(btn.iconClass)}"></i><span class="btn-label">${Runtime.escHtml(btn.label)}</span>
           </div>`;
         });
@@ -816,7 +823,7 @@ const MENU_REGISTRY = [
       try {
         var _sz = Store.mp.get('magic_panel_size_' + this.activeMenu.key);
         if (_sz && _sz.w) { this.panel.style.width = _sz.w; this.panel.style.height = _sz.h || ''; }
-      } catch(e) {}
+      } catch(e) { console.debug("[MP] restore panel size failed", e); }
 
       requestAnimationFrame(() => this.position());
     }
@@ -838,7 +845,7 @@ const MENU_REGISTRY = [
         var onUp = function() {
           self.rootDoc.removeEventListener('mousemove', onMove);
           self.rootDoc.removeEventListener('mouseup', onUp);
-          try { Store.mp.set('magic_panel_size_' + self.activeMenu.key, { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
+          try { Store.mp.set('magic_panel_size_' + self.activeMenu.key, { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) { console.debug("[MP] resize save1 failed", e); }
         };
         self.rootDoc.addEventListener('mousemove', onMove);
         self.rootDoc.addEventListener('mouseup', onUp);
@@ -857,7 +864,7 @@ const MENU_REGISTRY = [
         var onEnd = function() {
           self.rootDoc.removeEventListener('touchmove', onMove);
           self.rootDoc.removeEventListener('touchend', onEnd);
-          try { Store.mp.set('magic_panel_size_' + self.activeMenu.key, { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) {}
+          try { Store.mp.set('magic_panel_size_' + self.activeMenu.key, { w: self.panel.style.width, h: self.panel.style.height }); } catch(e) { console.debug("[MP] resize save failed", e); }
         };
         self.rootDoc.addEventListener('touchmove', onMove, { passive: false });
         self.rootDoc.addEventListener('touchend', onEnd);
@@ -867,7 +874,7 @@ const MENU_REGISTRY = [
     initDragHandlers() {
       if (this.__dragInited) return;
       this.__dragInited = true;
-      var _dnd = { el: null, id: null };
+      var _dnd = { el: null, id: null, lastTarget: null };
 
       var _swapBtns = function(fromEl, toEl) {
         if (!fromEl || !toEl || fromEl === toEl) return;
@@ -888,7 +895,7 @@ const MENU_REGISTRY = [
         if (!this.isSorting) return;
         var btn = e.target.closest('.magic-panel-btn');
         if (!btn) return;
-        _dnd = { el: btn, id: btn.dataset.btnId };
+        _dnd = { el: btn, id: btn.dataset.btnId, lastTarget: null };
         btn.classList.add('sort-dragging');
         e.preventDefault();
       }.bind(this));
@@ -897,6 +904,9 @@ const MENU_REGISTRY = [
         if (!_dnd.el) return;
         var el = this.rootDoc.elementFromPoint(e.clientX, e.clientY);
         var target = el ? el.closest('.magic-panel-btn') : null;
+        // Only swap on element boundary crossing, not every pixel
+        if (target === _dnd.lastTarget) return;
+        _dnd.lastTarget = target;
         // Clear sort-target on all buttons first
         _dnd.el.parentNode.querySelectorAll('.magic-panel-btn.sort-target').forEach(function(b) { b.classList.remove('sort-target'); });
         if (target && target !== _dnd.el && target.parentNode === _dnd.el.parentNode) {
@@ -911,7 +921,7 @@ const MENU_REGISTRY = [
         if (_dnd.el.parentNode) {
           _dnd.el.parentNode.querySelectorAll('.magic-panel-btn.sort-target').forEach(function(b) { b.classList.remove('sort-target'); });
         }
-        _dnd = { el: null, id: null };
+        _dnd = { el: null, id: null, lastTarget: null };
       };
 
       this.rootDoc.addEventListener('mouseup', _endDrag);
@@ -923,7 +933,7 @@ const MENU_REGISTRY = [
         var btn = this.rootDoc.elementFromPoint(touch.clientX, touch.clientY);
         if (btn) btn = btn.closest('.magic-panel-btn');
         if (!btn) return;
-        _dnd = { el: btn, id: btn.dataset.btnId };
+        _dnd = { el: btn, id: btn.dataset.btnId, lastTarget: null };
         btn.classList.add('sort-dragging');
         e.preventDefault();
       }.bind(this), { passive: false });
@@ -933,6 +943,9 @@ const MENU_REGISTRY = [
         var touch = e.touches[0];
         var el = this.rootDoc.elementFromPoint(touch.clientX, touch.clientY);
         var target = el ? el.closest('.magic-panel-btn') : null;
+        // Only swap on element boundary crossing, not every pixel
+        if (target === _dnd.lastTarget) return;
+        _dnd.lastTarget = target;
         // Clear sort-target on all buttons first
         _dnd.el.parentNode.querySelectorAll('.magic-panel-btn.sort-target').forEach(function(b) { b.classList.remove('sort-target'); });
         if (target && target !== _dnd.el && target.parentNode === _dnd.el.parentNode) {
@@ -973,12 +986,15 @@ const MENU_REGISTRY = [
     }
   }
 
-  function waitForButton() {
+  function waitForButton(retries) {
+    if (retries === undefined) retries = 0;
     const doc = Runtime.getRootDocument();
     if (MENU_CONFIGS.some(config => doc.getElementById(config.buttonId))) {
       new MagicPanel();
+    } else if (retries < 60) {
+      setTimeout(function() { waitForButton(retries + 1); }, 500);
     } else {
-      setTimeout(waitForButton, 500);
+      console.warn('[MagicPanel] 按钮未找到，放弃等待（60次重试后）');
     }
   }
 
@@ -1063,8 +1079,8 @@ const MENU_REGISTRY = [
 
       // Selectors injected by this plugin — don't clean them up even if not yet in DOM
       var SELF_INJECTED = ['#menu-cleaner-settings', '#menu-cleaner-btn'];
-      // discoveryCache and reorder: never prune — extensions may not have injected their items yet.
-      // Pruning would delete column assignments (right/left column) and reorder positions.
+      // discoveryCache: delayed cleanup runs after the 3-second re-scan in init().
+      // At load time, extensions may not have injected their items yet, so don't prune here.
     } catch (e) {
       console.warn('[酒馆菜单管理器] 读取设置失败，使用默认值', e);
       settings = Object.assign({}, defaultSettings);
@@ -1072,6 +1088,29 @@ const MENU_REGISTRY = [
   }
 
   function saveSettings() { Store.mc.setAll(settings); }
+
+  function cleanupDiscoveryCache() {
+    var groupIds = Object.keys(settings.discoveryCache);
+    var pruned = 0;
+    for (var _gi = 0; _gi < groupIds.length; _gi++) {
+      var gid = groupIds[_gi];
+      var cache = settings.discoveryCache[gid];
+      if (!cache || !cache.length) continue;
+      var filtered = [];
+      for (var _ci = 0; _ci < cache.length; _ci++) {
+        var entry = cache[_ci];
+        if (doc.querySelector(entry.selector)) {
+          filtered.push(entry);
+        } else {
+          pruned++;
+        }
+      }
+      settings.discoveryCache[gid] = filtered;
+    }
+    if (pruned > 0) {
+      saveSettings();
+    }
+  }
 
   function rememberNativeHome(el) {
     if (!el || !el.parentNode || nativeHomes.has(el)) return;
@@ -2259,10 +2298,15 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   // ── UI: Settings drawer in extensions_settings ──────────────────
-  function injectSettingsEntry() {
+  function injectSettingsEntry(retries) {
+    if (retries === undefined) retries = 0;
     var target = doc.querySelector('#extensions_settings');
     if (!target) {
-      setTimeout(injectSettingsEntry, 500);
+      if (retries < 60) {
+        setTimeout(function() { injectSettingsEntry(retries + 1); }, 500);
+      } else {
+        console.warn('[MenuCleaner] #extensions_settings 未找到，放弃重试');
+      }
       return;
     }
     if (doc.getElementById('menu-cleaner-settings')) return;
@@ -2383,9 +2427,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     // Refresh extension panel to reflect any reorder changes made in popup
     if (extPanelVisible) renderExtensionsPanel();
     applyNativeReorder('extensionsSettings');
-    for (var rg = 0; rg < REORDER_GROUP_IDS.length; rg++) {
-      if (REORDER_GROUP_IDS[rg] !== 'extensionsSettings') applyNativeReorder(REORDER_GROUP_IDS[rg]);
-    }
   }
 
   function toggleSettingsPanel() {
@@ -3087,9 +3128,6 @@ function renderHideView() {
     renderReorderView();
 
     applyNativeReorder('extensionsSettings');
-    for (var rg2 = 0; rg2 < REORDER_GROUP_IDS.length; rg2++) {
-      if (REORDER_GROUP_IDS[rg2] !== 'extensionsSettings') applyNativeReorder(REORDER_GROUP_IDS[rg2]);
-    }
   }
 
   // ── Rescan ───────────────────────────────────────────────────────
@@ -3124,6 +3162,12 @@ function renderHideView() {
           return;
         }
         if (extPanelVisible) {
+          var _panel = getExtPanel();
+          if (_panel) {
+            returnElementsToNative();
+            _panel.style.display = 'none';
+            _panel.setAttribute('aria-hidden', 'true');
+          }
           extPanelVisible = false;
         }
       }
@@ -3143,6 +3187,8 @@ function renderHideView() {
 
   // ── Slash commands ────────────────────────────────────────────
   function registerSlashCmd() {
+    if (win.__mcSlashRegistered) return;
+    win.__mcSlashRegistered = true;
     try {
       var script = doc.createElement('script');
       script.type = 'module';
@@ -3210,6 +3256,8 @@ function renderHideView() {
     }
 
     // MutationObserver: watch for new elements
+    var mcObservers = [];
+    win.__mcObservers = mcObservers; // exposed for disconnect on disable
     var observeContainers = function () {
       var targets = ['#extensions_settings', '#extensions_settings2'];
       for (var t = 0; t < targets.length; t++) {
@@ -3226,6 +3274,7 @@ function renderHideView() {
             }
           });
           observer.observe(el, { childList: true, subtree: false });
+          mcObservers.push(observer);
         })(targets[t]);
       }
     };
@@ -3268,19 +3317,12 @@ function renderHideView() {
     registerSlashCmd();
     setupAutoRescan();
 
-    // Step 6: Apply saved reorder to native DOM
-    applyNativeReorder('extensionsSettings');
-    for (var rg = 0; rg < REORDER_GROUP_IDS.length; rg++) {
-      if (REORDER_GROUP_IDS[rg] !== 'extensionsSettings') applyNativeReorder(REORDER_GROUP_IDS[rg]);
-    }
-
     // Delayed re-scan catches extensions that inject buttons after init
     setTimeout(function () {
       refreshDiscoveryCache();
       if (settings.enabled) applyNativeReorder('extensionsSettings');
-      for (var rg2 = 0; rg2 < REORDER_GROUP_IDS.length; rg2++) {
-        if (REORDER_GROUP_IDS[rg2] !== 'extensionsSettings') applyNativeReorder(REORDER_GROUP_IDS[rg2]);
-      }
+      // Clean up stale discoveryCache entries not in DOM
+      cleanupDiscoveryCache();
     }, 3000);
   
   Runtime.openMenuCleanerPopup = openPopup;
@@ -3294,5 +3336,5 @@ function renderHideView() {
     init();
   }
 
-  try { win.__mcDisable = function() { var s = Store.mc.getAll() || {}; s.enabled = false; Store.mc.setAll(s); }; } catch(e) {}
+  try { win.__mcDisable = function() { var s = Store.mc.getAll() || {}; s.enabled = false; Store.mc.setAll(s); }; } catch(e) { console.debug('[MC] __mcDisable setup failed', e); }
 })();

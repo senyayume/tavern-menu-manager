@@ -89,6 +89,24 @@ tavern-menu-manager/
 
 ## 📋 更新日志
 
+### v1.2.2 (2025-06-06)
+
+**修复**
+- `btn.id` 未转义属性注入风险 → `Runtime.escHtml(btn.id)` 转义
+- `waitForButton()` 和 `injectSettingsEntry()` 无限轮询 → 60 次 retries 上限
+- Escape 键关闭扩展面板只改状态不关 UI → 追加 DOM 隐藏 + returnElementsToNative
+- `registerSlashCmd()` 热重载重复注册 → `win.__mcSlashRegistered` 守卫
+- `ensureMenuBindings()` 对不存在的按钮也计入重试 → 只检查已在 DOM 中的按钮
+
+**变更**
+- 12 个内置菜单图标移入 `BUILTIN_OPTIONS_ITEMS.icon` 字段，删除独立 `icons` 映射表
+- 删除 `init()` 中冗余的 `applyNativeReorder` 重复调用（Step 6）
+- 清除 `REORDER_GROUP_IDS` 的死 `for+if` 循环
+
+**安全**
+- `escHtml` 增加 `'` 和 `` ` `` 转义
+- 8 处空 `catch(e) {}` 添加 `console.debug` 日志
+
 ### v1.2.1 (2025-06-06)
 
 **修复**
