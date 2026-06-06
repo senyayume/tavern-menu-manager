@@ -1063,14 +1063,8 @@ const MENU_REGISTRY = [
 
       // Selectors injected by this plugin — don't clean them up even if not yet in DOM
       var SELF_INJECTED = ['#menu-cleaner-settings', '#menu-cleaner-btn'];
-      // Don't clean stale entries — extensions may not have injected their buttons yet
-      var dcGroups = Object.keys(settings.discoveryCache);
-      for (var dg = 0; dg < dcGroups.length; dg++) {
-        settings.discoveryCache[dcGroups[dg]] = settings.discoveryCache[dcGroups[dg]].filter(function (c) {
-          return doc.querySelector(c.selector);
-        });
-      }
-      // reorder: never prune — items may not be in DOM yet
+      // discoveryCache and reorder: never prune — extensions may not have injected their items yet.
+      // Pruning would delete column assignments (right/left column) and reorder positions.
     } catch (e) {
       console.warn('[酒馆菜单管理器] 读取设置失败，使用默认值', e);
       settings = Object.assign({}, defaultSettings);
