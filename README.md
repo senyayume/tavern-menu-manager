@@ -94,7 +94,7 @@ tavern-menu-manager/
 **修复**
 - 魔法面板两个「关闭聊天」重复 → label 去重，只保留有效的那个
 - TauriTavern「切换全屏」按钮屏蔽（面板 + 精简器均过滤）
-- 扩展面板排序被打乱 → 删除自动修改，排序只由拖拽写入
+- 扩展面板排序被打乱 / 扩展跑到左栏 → loadSettings 不再裁剪 discoveryCache 和 reorder，列信息不丢失，排序不乱
 
 ### v1.2.0 (2025-06-05)
 
