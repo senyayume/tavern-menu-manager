@@ -222,12 +222,15 @@ const MENU_REGISTRY = [
       transform:scale(1);
     }
     .magic-panel-header {
-      display:flex; align-items:center; gap:8px;
+      display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; justify-content:space-between;
       padding:10px 14px; border-bottom:1px solid var(--SmartThemeBorderColor);
     }
     .magic-panel-title {
       font-size: calc(14px * var(--content-scale, 1));
-      color:var(--SmartThemeBodyColor,#e0e0e0); margin-right:auto;
+      color:var(--SmartThemeBodyColor,#e0e0e0); white-space:nowrap; flex-shrink:0;
+    }
+    .magic-panel-actions {
+      display:flex; align-items:center; gap:4px; flex-shrink:0;
     }
     .magic-panel-edit-btn {
       cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
@@ -389,11 +392,13 @@ const MENU_REGISTRY = [
             <div class="magic-panel">
               <div class="magic-panel-header">
                 <span class="magic-panel-title">酒馆菜单管理器</span>
-                <span class="magic-panel-fit-btn" role="button" aria-label="自适应大小"><i class="fa-solid fa-expand"></i></span>
-                <span class="magic-panel-scale-btn" role="button" aria-label="缩放"><i class="fa-solid fa-text-height"></i></span>
-                <span class="magic-panel-sort-btn" role="button" aria-label="排序"><i class="fa-solid fa-arrow-up-short-wide"></i></span>
-                <span class="magic-panel-edit-btn" role="button" aria-label="编辑模式"><i class="fa-solid fa-pen"></i></span>
-                <span class="magic-panel-settings-btn" role="button" aria-label="设置"><i class="fa-solid fa-cog"></i></span>
+                <div class="magic-panel-actions">
+                  <span class="magic-panel-edit-btn" role="button" aria-label="编辑模式"><i class="fa-solid fa-pen"></i></span>
+                  <span class="magic-panel-sort-btn" role="button" aria-label="排序"><i class="fa-solid fa-arrow-up-short-wide"></i></span>
+                  <span class="magic-panel-scale-btn" role="button" aria-label="缩放"><i class="fa-solid fa-text-height"></i></span>
+                  <span class="magic-panel-fit-btn" role="button" aria-label="自适应大小"><i class="fa-solid fa-expand"></i></span>
+                  <span class="magic-panel-settings-btn" role="button" aria-label="设置"><i class="fa-solid fa-cog"></i></span>
+                </div>
               </div>
               <div class="magic-panel-scale-bar">
                 <span class="scale-label">Aa</span>
