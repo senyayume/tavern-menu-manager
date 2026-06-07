@@ -13,7 +13,7 @@ var Store = (function() {
   };
   var _mc = {
     getAll: function() { try { return JSON.parse(ls.getItem('menu_cleaner_settings') || '{}'); } catch(e) { return null; } },
-    setAll: function(o) { try { ls.setItem('menu_cleaner_settings', JSON.stringify(o)); } catch(e) { console.debug('[Store] setAll failed', e); } },
+    setAll: function(o) { try { ls.setItem('menu_cleaner_settings', JSON.stringify(o)); } catch(e) { try { console.debug('[Store] setAll failed', e); } catch(_) {} } },
     getHiddenSelectors: function() {
       try {
         var hs = JSON.parse(ls.getItem('menu_cleaner_settings') || '{}').hiddenSelectors || {};
@@ -191,7 +191,7 @@ const MENU_REGISTRY = [
 
 
   function getHiddenButtons() { try { return Store.mp.get(STORAGE_HIDDEN) || []; } catch(e) { return []; } }
-  function saveHiddenButtons(list) { try { Store.mp.set(STORAGE_HIDDEN, list); } catch(e) { console.debug('[MP] saveHiddenButtons failed', e); } }
+  function saveHiddenButtons(list) { try { Store.mp.set(STORAGE_HIDDEN, list); } catch(e) { try { console.debug('[MP] saveHiddenButtons failed', e); } catch(_) {} } }
 
   // MenuCleaner cross-module: read hidden selectors from menu_cleaner_settings
   const panelCSS = `
@@ -1076,6 +1076,36 @@ const MENU_REGISTRY = [
       for (var mv = 0; mv < Runtime.MP_VISIBLE_SELECTORS.length; mv++) {
         if (settings.hiddenSelectors[Runtime.MP_VISIBLE_SELECTORS[mv]] === true) delete settings.hiddenSelectors[Runtime.MP_VISIBLE_SELECTORS[mv]];
       }
+      // Clean up stale auto-ID entries from extensionsSettings cache (TT-specific bug:
+      // extension_container sub-scan prior to v1.2.2 discovered drawers inside hardcoded
+      // containers like #regex_container, creating duplicates like "聊天档案").
+      (function _cleanStaleCache() {
+        if (!settings.discoveryCache || !settings.discoveryCache['extensionsSettings']) return;
+        var _esc = settings.discoveryCache['extensionsSettings'];
+        var _hcSels = [];
+        for (var _pg = 0; _pg < PANEL_GROUPS.length; _pg++) {
+          if (PANEL_GROUPS[_pg].id === 'extensionsSettings') {
+            for (var _hi = 0; _hi < PANEL_GROUPS[_pg].items.length; _hi++) {
+              _hcSels.push(PANEL_GROUPS[_pg].items[_hi].selector);
+            }
+            break;
+          }
+        }
+        var _pruned = false;
+        for (var _ci = _esc.length - 1; _ci >= 0; _ci--) {
+          var _entry = _esc[_ci];
+          if (_entry.selector.indexOf('menu-cleaner-auto-') === -1) continue;
+          var _el = doc.querySelector(_entry.selector);
+          if (!_el) { _esc.splice(_ci, 1); _pruned = true; continue; }
+          for (var _hs = 0; _hs < _hcSels.length; _hs++) {
+            var _hcEl = doc.querySelector(_hcSels[_hs]);
+            if (_hcEl && _hcEl.contains(_el)) {
+              _esc.splice(_ci, 1); _pruned = true; break;
+            }
+          }
+        }
+        if (_pruned) saveSettings();
+      })();
 
       // Selectors injected by this plugin — don't clean them up even if not yet in DOM
       var SELF_INJECTED = ['#menu-cleaner-settings', '#menu-cleaner-btn'];
@@ -3346,5 +3376,5 @@ function renderHideView() {
     init();
   }
 
-  try { win.__mcDisable = function() { var s = Store.mc.getAll() || {}; s.enabled = false; Store.mc.setAll(s); }; } catch(e) { console.debug('[MC] __mcDisable setup failed', e); }
+  try { win.__mcDisable = function() { var s = Store.mc.getAll() || {}; s.enabled = false; Store.mc.setAll(s); }; } catch(e) { try { console.debug('[MC] __mcDisable setup failed', e); } catch(_) {} }
 })();
