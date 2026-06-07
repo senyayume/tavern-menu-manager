@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.3.0==
+// ==酒馆菜单管理器 v1.4.0==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -189,6 +189,7 @@ const MENU_REGISTRY = [
   const STORAGE_HIDDEN = 'magic_panel_hidden_buttons';
   const STORAGE_CONTENT_SCALE = 'magic_content_scale';
   const STORAGE_COLUMNS = 'magic_panel_columns';
+  const STORAGE_DENSITY = 'magic_panel_density';
 
 
   function getHiddenButtons() { try { return Store.mp.get(STORAGE_HIDDEN) || []; } catch(e) { return []; } }
@@ -321,6 +322,14 @@ const MENU_REGISTRY = [
     }
     .magic-panel-scale-bar .magic-panel-cols span.active { background:rgba(255,255,255,0.1); color:var(--SmartThemeBodyColor,#e0e0e0); font-weight:600; }
     .magic-panel-scale-bar .magic-panel-cols span:hover { color:var(--SmartThemeBodyColor,#e0e0e0); }
+    .magic-panel-scale-bar .magic-panel-density {
+      display:flex; align-items:center; gap:2px; font-size:12px; flex-shrink:0;
+    }
+    .magic-panel-scale-bar .magic-panel-density span {
+      cursor:pointer; padding:2px 5px; border-radius:4px; color:var(--SmartThemeBodyColor,#888); line-height:1;
+    }
+    .magic-panel-scale-bar .magic-panel-density span.active { background:rgba(255,255,255,0.1); color:var(--SmartThemeBodyColor,#e0e0e0); font-weight:600; }
+    .magic-panel-scale-bar .magic-panel-density span:hover { color:var(--SmartThemeBodyColor,#e0e0e0); }
     .magic-panel-save-bar {
       display:none; padding:10px; text-align:center;
       border-top:1px solid var(--SmartThemeBorderColor);
@@ -340,13 +349,28 @@ const MENU_REGISTRY = [
     }
     .magic-panel-sort-btn.active { color:var(--SmartThemeQuoteColor,#5bc0de); }
     .magic-panel-btn .drag-handle { display:none; cursor:grab; color:var(--SmartThemeBodyColor,#ccc); position:absolute; left:4px; top:50%; transform:translateY(-50%); font-size:13px; user-select:none; }
-    .magic-panel.is-sorting .magic-panel-btn { cursor:grab; position:relative; padding-left:22px; }
     .magic-panel.is-sorting .magic-panel-grid, .magic-panel.is-sorting .magic-panel-more-grid.expanded { gap:4px; }
     .magic-panel.is-sorting .magic-panel-btn .drag-handle { display:inline-block; }
     .magic-panel.is-sorting .magic-panel-btn .edit-check { display:none; }
     .magic-panel.is-sorting .magic-panel-btn:hover { transform:none; }
     .magic-panel-btn.sort-dragging { opacity:0.6; z-index:99; }
     .magic-panel-btn.sort-target { border:2px dashed var(--SmartThemeQuoteColor,#5bc0de) !important; }
+    /* ── Density modes ── */
+    .magic-panel.density-large .magic-panel-btn { min-height:64px; padding:12px 6px; gap:6px; }
+    .magic-panel.density-large .btn-label { font-size:calc(13px * var(--content-scale,1)); }
+    .magic-panel.density-medium .magic-panel-btn { min-height:52px; padding:8px 4px; gap:4px; }
+    .magic-panel.density-medium .btn-label { font-size:calc(10px * var(--content-scale,1)); }
+    .magic-panel.density-medium .magic-panel-btn i { font-size:calc(16px * var(--content-scale,1)); }
+    .magic-panel.density-small .magic-panel-btn { min-height:44px; padding:6px 4px; gap:3px; }
+    .magic-panel.density-small .btn-label { font-size:calc(9px * var(--content-scale,1)); }
+    .magic-panel.density-small .magic-panel-btn i { font-size:calc(14px * var(--content-scale,1)); }
+    .magic-panel.density-icon .magic-panel-btn { min-height:48px; padding:6px 4px; gap:2px; }
+    .magic-panel.density-icon .btn-label { display:none; }
+    .magic-panel.density-icon .magic-panel-btn i { font-size:calc(20px * var(--content-scale,1)); }
+    .magic-panel.density-small-icon .magic-panel-btn { min-height:40px; padding:4px 4px; gap:2px; }
+    .magic-panel.density-small-icon .btn-label { display:none; }
+    .magic-panel.density-small-icon .magic-panel-btn i { font-size:calc(18px * var(--content-scale,1)); }
+    .magic-panel.is-sorting .magic-panel-btn { cursor:grab; position:relative; padding-left:22px; }
     @media (max-width:600px) {
       /* 手机端同样使用变量，不再写死宽度 */
       .magic-panel { width: var(--panel-width, 280px); }
@@ -376,6 +400,7 @@ const MENU_REGISTRY = [
       this.createPanel();
       this.bindEvents();
       this.bindColumnClicks();
+      this.bindDensityClicks();
       this.initScale();
       this.blockOriginalMenus();
       this.ensureMenuBindings();
@@ -420,6 +445,8 @@ const MENU_REGISTRY = [
                 <span class="scale-value">100%</span>
                 <span class="scale-divider"></span>
                 <span class="magic-panel-cols" id="panelCols"><span data-cols="1">1</span><span data-cols="2">2</span><span data-cols="3" class="active">3</span><span data-cols="4">4</span></span>
+                <span class="scale-divider"></span>
+                <span class="magic-panel-density" id="panelDensity"><span data-density="large">大</span><span data-density="medium">中</span><span data-density="small">小</span><span data-density="icon">图标</span><span data-density="small-icon">小图标</span></span>
               </div>
               <div class="magic-panel-body"><div data-content="tavern"></div></div>
               <div class="magic-panel-resize-handle"></div>
@@ -435,6 +462,8 @@ const MENU_REGISTRY = [
       this.settingsBtn = this.panel.querySelector('.magic-panel-settings-btn');
       this.colsEls = this.panel.querySelectorAll('.magic-panel-cols span');
       this.initColumns();
+      this.densityEls = this.panel.querySelectorAll('.magic-panel-density span');
+      this.initDensity();
       this.saveBar = this.panel.querySelector('.magic-panel-save-bar');
       this.saveBtn = this.panel.querySelector('.magic-panel-save-btn');
       this.content = this.panel.querySelector('[data-content="tavern"]');
@@ -538,6 +567,29 @@ const MENU_REGISTRY = [
       this.panel.style.setProperty('--panel-cols', cols);
       this.colsEls.forEach(function(el) {
         el.classList.toggle('active', parseInt(el.dataset.cols) === cols);
+      });
+    }
+
+    bindDensityClicks() {
+      var self = this;
+      this.densityEls.forEach(function(el) {
+        el.addEventListener('click', function() {
+          var density = this.dataset.density;
+          // Remove all density classes, add selected
+          self.panel.classList.remove('density-large', 'density-medium', 'density-small', 'density-icon', 'density-small-icon');
+          self.panel.classList.add('density-' + density);
+          self.densityEls.forEach(function(e) { e.classList.toggle('active', e === el); });
+          try { Store.mp.set(STORAGE_DENSITY, density); } catch(e) { try { console.debug('[MP] save density failed', e); } catch(_) {} }
+        });
+      });
+    }
+
+    initDensity() {
+      var density = Store.mp.get(STORAGE_DENSITY) || 'large';
+      if (['large','medium','small','icon','small-icon'].indexOf(density) === -1) density = 'large';
+      this.panel.classList.add('density-' + density);
+      this.densityEls.forEach(function(el) {
+        el.classList.toggle('active', el.dataset.density === density);
       });
     }
 
@@ -1033,6 +1085,8 @@ const MENU_REGISTRY = [
 
   function waitForButton(retries) {
     if (retries === undefined) retries = 0;
+    // If user disabled MagicPanel, skip creation entirely
+    try { if (Store.mp.get('magic_panel_mp_enabled') === false) return; } catch(e) {}
     const doc = Runtime.getRootDocument();
     if (MENU_CONFIGS.some(config => doc.getElementById(config.buttonId))) {
       new MagicPanel();
@@ -1062,7 +1116,6 @@ const MENU_REGISTRY = [
 
   let autoIdSeq = 0;
   let activeTab = 'hide';
-  let showSettingsPanel = false;
   let extPanelVisible = false;
   let rescanTimer = null;
   let dragActive = false; // set while user is dragging a reorder item
@@ -1452,6 +1505,7 @@ const MENU_REGISTRY = [
 }
 
 /* ── Settings Panel ──────────────────────────────── */
+
 .menu-cleaner-settings-panel { padding: 12px 18px; }
 
 button.menu-cleaner-settings-btn-full {
@@ -2406,12 +2460,16 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           '<div style="padding:8px 0;">' +
             '<label class="checkbox_label">' +
               '<input id="menu-cleaner-enable" type="checkbox"' + (settings.enabled ? ' checked' : '') + '>' +
-              '<span>启用扩展</span>' +
+              '<span>启用精简器（/menucleaner 斜杠命令）</span>' +
+            '</label>' +
+            '<label class="checkbox_label" style="margin-top:4px;">' +
+              '<input id="menu-cleaner-mp-enable" type="checkbox"' + (Store.mp.get('magic_panel_mp_enabled') !== false ? ' checked' : '') + '>' +
+              '<span>启用魔法面板</span>' +
             '</label>' +
             '<p style="color:#888;font-size:0.85em;margin:4px 0;">' +
-              '点击魔棒菜单中的 <b>酒馆菜单管理器</b> 打开操作面板，选择要隐藏的原生菜单项。' +
+              '点击魔棒菜单中的 <b>酒馆菜单管理器</b> 打开精简器面板，选择要隐藏的原生菜单项。' +
             '</p>' +
-            '<button id="menu-cleaner-open-popup" class="menu_button">打开操作面板</button>' +
+            '<button id="menu-cleaner-open-popup" class="menu_button">打开精简器面板</button>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -2440,6 +2498,11 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       }
     });
 
+    var mpEnableCb = doc.getElementById('menu-cleaner-mp-enable');
+    mpEnableCb && mpEnableCb.addEventListener('change', function (e) {
+      try { Store.mp.set('magic_panel_mp_enabled', e.target.checked); } catch(_) {}
+    });
+
     var openBtn = doc.getElementById('menu-cleaner-open-popup');
     openBtn && openBtn.addEventListener('click', function () { openPopup(); });
   }
@@ -2454,7 +2517,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         '<div class="menu-cleaner-popup-header">' +
           '<h2>酒馆菜单管理器</h2>' +
           '<div class="menu-cleaner-popup-actions">' +
-            '<button id="menu-cleaner-settings-btn" class="menu_button">设置</button>' +
+            '<button id="menu-cleaner-rescan-btn" class="menu_button">手动重扫</button>' +
             '<button id="menu-cleaner-close" class="menu_button">✕ 关闭</button>' +
           '</div>' +
         '</div>' +
@@ -2470,8 +2533,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     var backdrop = doc.getElementById('menu-cleaner-backdrop');
     closeBtn && closeBtn.addEventListener('click', closePopup);
     backdrop && backdrop.addEventListener('click', closePopup);
-    var settingsBtn = doc.getElementById('menu-cleaner-settings-btn');
-    settingsBtn && settingsBtn.addEventListener('click', toggleSettingsPanel);
+    var rescanBtn = doc.getElementById('menu-cleaner-rescan-btn');
+    rescanBtn && rescanBtn.addEventListener('click', function() { doRescan(); });
 
     var tabs = doc.querySelectorAll('.menu-cleaner-tab');
     for (var t = 0; t < tabs.length; t++) {
@@ -2485,7 +2548,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     refreshDiscoveryCache();
     doc.getElementById('menu-cleaner-backdrop').style.display = 'block';
     getPopup().style.display = 'flex';
-    showSettingsPanel = false;
     updatePopupView();
     refreshPopup();
     positionPopup();
@@ -2508,30 +2570,14 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     var popup = getPopup();
     if (backdrop) backdrop.style.display = 'none';
     if (popup) popup.style.display = 'none';
-    showSettingsPanel = false;
     // Refresh extension panel to reflect any reorder changes made in popup
     if (extPanelVisible) renderExtensionsPanel();
     applyNativeReorder('extensionsSettings');
   }
 
-  function toggleSettingsPanel() {
-    showSettingsPanel = !showSettingsPanel;
-    updatePopupView();
-    if (!showSettingsPanel) refreshPopup();
-  }
+
 
   function updatePopupView() {
-    var tabsEl = doc.getElementById('menu-cleaner-tabs');
-    var settingsBtn = doc.getElementById('menu-cleaner-settings-btn');
-
-    if (showSettingsPanel) {
-      if (tabsEl) tabsEl.style.display = 'none';
-      if (settingsBtn) settingsBtn.textContent = '返回';
-      renderSettingsView();
-    } else {
-      if (tabsEl) tabsEl.style.display = '';
-      if (settingsBtn) settingsBtn.textContent = '设置';
-    }
   }
 
   function switchTab(tabName) {
@@ -2562,76 +2608,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
     applyNativeReorder('extensionsSettings');
 
-    if (!showSettingsPanel && activeTab === 'reorder') renderReorderView();
+    if (activeTab === 'reorder') renderReorderView();
 
-    if (showSettingsPanel) renderSettingsView();
   }
 
-  // ── Settings panel view ─────────────────────────────────────────
-  function renderSettingsView() {
-    var body = getPopupBody();
-    if (!body) return;
-
-    var html =
-      '<div class="menu-cleaner-settings-panel">' +
-        '<button id="menu-cleaner-rescan" class="menu_button menu-cleaner-settings-btn-full">手动重新扫描</button>' +
-        '<button id="menu-cleaner-reset-order" class="menu_button menu-cleaner-settings-btn-full">恢复原始排序</button>' +
-        '<button id="menu-cleaner-clear-data" class="menu_button menu-cleaner-settings-btn-full">清除插件数据</button>' +
-        '<div class="menu-cleaner-settings-divider">—————— 扩展面板分栏 ——————</div>' +
-        '<div id="menu-cleaner-colmode-dual" class="menu-cleaner-settings-row menu-cleaner-colmode-option' + (settings.columnMode === 'dual' ? ' menu-cleaner-colmode-active' : '') + '">' +
-          '<span>双栏</span>' +
-        '</div>' +
-        '<div id="menu-cleaner-colmode-single" class="menu-cleaner-settings-row menu-cleaner-colmode-option' + (settings.columnMode === 'single' ? ' menu-cleaner-colmode-active' : '') + '">' +
-          '<span>单栏</span>' +
-        '</div>' +
-        '<div class="menu-cleaner-settings-divider">—————— 调试用内容 ——————</div>' +
-        '<div class="menu-cleaner-settings-row">' +
-          '<span>重扫描消息toast</span>' +
-          '<label class="menu-cleaner-toggle">' +
-            '<input type="checkbox" id="menu-cleaner-rescan-toast"' + (settings.rescanToast ? ' checked' : '') + '>' +
-            '<span class="menu-cleaner-slider"></span>' +
-          '</label>' +
-        '</div>' +
-      '</div>';
-
-    body.innerHTML = html;
-
-    var rescanBtn = doc.getElementById('menu-cleaner-rescan');
-    rescanBtn && rescanBtn.addEventListener('click', function() { doRescan(); });
-    var resetBtn = doc.getElementById('menu-cleaner-reset-order');
-    resetBtn && resetBtn.addEventListener('click', function() { resetAllReorders(); });
-
-    var clearBtn = doc.getElementById('menu-cleaner-clear-data');
-    clearBtn && clearBtn.addEventListener('click', function() {
-      if (!win.confirm('确定要清除所有插件配置数据吗？此操作不可撤销。')) return;
-      settings = Object.assign({}, defaultSettings);
-      saveSettings();
-      clearAllHides();
-      showSettingsPanel = false;
-      activeTab = 'hide';
-      updatePopupView();
-      captureInitialSnapshot();
-      refreshDiscoveryCache();
-      applyHides();
-      applyNativeReorder('extensionsSettings');
-      renderExtensionsPanel();
-    });
-
-    var toastCb = doc.getElementById('menu-cleaner-rescan-toast');
-    toastCb && toastCb.addEventListener('change', function(e) {
-      settings.rescanToast = e.target.checked;
-      saveSettings();
-    });
-
-    var dualBtn = doc.getElementById('menu-cleaner-colmode-dual');
-    dualBtn && dualBtn.addEventListener('click', function() { applyColumnMode('dual'); });
-    var singleBtn = doc.getElementById('menu-cleaner-colmode-single');
-    singleBtn && singleBtn.addEventListener('click', function() { applyColumnMode('single'); });
-
-    positionPopup();
-  }
-
-  // ── Reorder view ────────────────────────────────────────────────
   function renderReorderView() {
     var body = getPopupBody();
     if (!body) return;
@@ -2684,6 +2664,18 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       html += '</div></div>';
     }
 
+    // ── Tools section (settings moved here) ──
+    html += '<div class="menu-cleaner-settings-panel">';
+    html += '<div class="menu-cleaner-settings-divider">—————— 扩展菜单分栏 ——————</div>';
+    html += '<div id="menu-cleaner-colmode-dual" class="menu-cleaner-settings-row menu-cleaner-colmode-option' + (settings.columnMode === 'dual' ? ' menu-cleaner-colmode-active' : '') + '"><span>双栏</span></div>';
+    html += '<div id="menu-cleaner-colmode-single" class="menu-cleaner-settings-row menu-cleaner-colmode-option' + (settings.columnMode === 'single' ? ' menu-cleaner-colmode-active' : '') + '"><span>单栏</span></div>';
+    html += '<div class="menu-cleaner-settings-divider">—————— 工具区 ——————</div>';
+    html += '<button id="menu-cleaner-reset-order" class="menu_button menu-cleaner-settings-btn-full">恢复原始排序</button>';
+    html += '<button id="menu-cleaner-clear-data" class="menu_button menu-cleaner-settings-btn-full">清除插件数据</button>';
+    html += '<div class="menu-cleaner-settings-divider">—————— 调试用内容 ——————</div>';
+    html += '<div class="menu-cleaner-settings-row"><span>重扫描消息toast</span><label class="menu-cleaner-toggle"><input type="checkbox" id="menu-cleaner-rescan-toast"' + (settings.rescanToast ? ' checked' : '') + '><span class="menu-cleaner-slider"></span></label></div>';
+    html += '</div>';
+
     body.innerHTML = html;
 
     // Bind category collapse
@@ -2700,6 +2692,33 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         }
       });
     }
+
+    // ── Bind tools section events ──
+    var resetBtn = doc.getElementById('menu-cleaner-reset-order');
+    resetBtn && resetBtn.addEventListener('click', function() { resetAllReorders(); });
+    var clearBtn = doc.getElementById('menu-cleaner-clear-data');
+    clearBtn && clearBtn.addEventListener('click', function() {
+      if (!win.confirm('确定要清除所有插件配置数据吗？此操作不可撤销。')) return;
+      settings = Object.assign({}, defaultSettings);
+      saveSettings();
+      clearAllHides();
+      activeTab = 'hide';
+      switchTab('hide');
+      captureInitialSnapshot();
+      refreshDiscoveryCache();
+      applyHides();
+      applyNativeReorder('extensionsSettings');
+      renderExtensionsPanel();
+    });
+    var toastCb = doc.getElementById('menu-cleaner-rescan-toast');
+    toastCb && toastCb.addEventListener('change', function(e) {
+      settings.rescanToast = e.target.checked;
+      try { saveSettings(); } catch(_) {}
+    });
+    var colDual = doc.getElementById('menu-cleaner-colmode-dual');
+    colDual && colDual.addEventListener('click', function() { applyColumnMode('dual'); });
+    var colSingle = doc.getElementById('menu-cleaner-colmode-single');
+    colSingle && colSingle.addEventListener('click', function() { applyColumnMode('single'); });
 
     bindReorderDragEvents();
     positionPopup();
@@ -3049,7 +3068,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
   // ── Build popup content ─────────────────────────────────────────
   function refreshPopup() {
-    if (showSettingsPanel) return;
     if (activeTab === 'reorder') {
       renderReorderView();
       return;
@@ -3199,7 +3217,6 @@ function renderHideView() {
 
     saveSettings();
 
-    showSettingsPanel = false;
     activeTab = 'reorder';
     var tabs = doc.querySelectorAll('.menu-cleaner-tab');
     for (var t = 0; t < tabs.length; t++) {
@@ -3239,6 +3256,8 @@ function renderHideView() {
 
   // ── Keyboard ──────────────────────────────────────────────────
   function setupKeyboard() {
+    if (win.__mcKeyboardBound) return;
+    win.__mcKeyboardBound = true;
     doc.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
         var popup = getPopup();
@@ -3331,6 +3350,12 @@ function renderHideView() {
   }
 
   function setupAutoRescan() {
+    // Disconnect old observers before creating new ones (hot reload safety)
+    if (win.__mcObservers) {
+      for (var _do = 0; _do < win.__mcObservers.length; _do++) {
+        try { win.__mcObservers[_do].disconnect(); } catch(_) {}
+      }
+    }
     // SillyTavern event: chat/character changed
     try {
       // CHAT_CHANGED auto-rescan disabled: MutationObserver already covers
