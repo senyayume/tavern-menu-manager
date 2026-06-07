@@ -96,6 +96,11 @@ tavern-menu-manager/
 - 可独立开关魔法面板 / 精简器
 - 弹窗头部「设置」→「手动重扫」
 
+**修复**
+- `setupAutoRescan()` 热重载旧 Observer 未 disconnect 修复
+- `setupKeyboard()` 重复绑定守卫
+- 分栏切换按钮函数名修复
+
 **变更**
 - 设置内容整合到重排序页面底部，删除设置面板整页
 - 工具栏窄屏按钮换行优化
