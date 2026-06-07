@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.2.2==
+// ==酒馆菜单管理器 v1.3.0==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -188,6 +188,7 @@ const MENU_REGISTRY = [
 
   const STORAGE_HIDDEN = 'magic_panel_hidden_buttons';
   const STORAGE_CONTENT_SCALE = 'magic_content_scale';
+  const STORAGE_COLUMNS = 'magic_panel_columns';
 
 
   function getHiddenButtons() { try { return Store.mp.get(STORAGE_HIDDEN) || []; } catch(e) { return []; } }
@@ -239,6 +240,7 @@ const MENU_REGISTRY = [
     .magic-panel-settings-btn {
       cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
     }
+
     .magic-panel-body {
       flex:1; overflow-y:auto; padding:12px;
     }
@@ -259,7 +261,7 @@ const MENU_REGISTRY = [
       background:rgba(255,255,255,0.03); color:var(--SmartThemeBodyColor,#ccc);
     }
     .magic-panel-grid, .magic-panel-more-grid.expanded {
-      display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+      display:grid; grid-template-columns:repeat(var(--panel-cols,3),1fr); gap:8px;
     }
 
     .magic-panel-btn:hover {
@@ -296,18 +298,29 @@ const MENU_REGISTRY = [
       display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
     }
     .magic-panel-scale-bar {
-      display:none; align-items:center; gap:8px;
+      display:none; flex-wrap:wrap; align-items:center; gap:6px 8px;
       padding:6px 14px; border-bottom:1px solid var(--SmartThemeBorderColor);
       background:rgba(255,255,255,0.02);
     }
     .magic-panel-scale-bar.active { display:flex; }
     .magic-panel-scale-bar .scale-label { font-size:13px; color:var(--SmartThemeBodyColor,#ccc); cursor:pointer; }
     .magic-panel-scale-bar .magic-panel-scale-slider {
-      flex:1; height:4px; cursor:pointer; accent-color:var(--SmartThemeQuoteColor,#5bc0de);
+      flex:1; height:4px; cursor:pointer; accent-color:var(--SmartThemeQuoteColor,#5bc0de); min-width:60px;
     }
     .magic-panel-scale-bar .scale-value {
       font-size:11px; color:var(--SmartThemeBodyColor,#888); min-width:32px; text-align:right;
     }
+    .magic-panel-scale-bar .scale-divider {
+      width:1px; height:16px; background:rgba(255,255,255,0.1); flex-shrink:0;
+    }
+    .magic-panel-scale-bar .magic-panel-cols {
+      display:flex; align-items:center; gap:2px; font-size:12px; flex-shrink:0;
+    }
+    .magic-panel-scale-bar .magic-panel-cols span {
+      cursor:pointer; padding:2px 5px; border-radius:4px; color:var(--SmartThemeBodyColor,#888); line-height:1; min-width:16px; text-align:center;
+    }
+    .magic-panel-scale-bar .magic-panel-cols span.active { background:rgba(255,255,255,0.1); color:var(--SmartThemeBodyColor,#e0e0e0); font-weight:600; }
+    .magic-panel-scale-bar .magic-panel-cols span:hover { color:var(--SmartThemeBodyColor,#e0e0e0); }
     .magic-panel-save-bar {
       display:none; padding:10px; text-align:center;
       border-top:1px solid var(--SmartThemeBorderColor);
@@ -337,7 +350,7 @@ const MENU_REGISTRY = [
     @media (max-width:600px) {
       /* 手机端同样使用变量，不再写死宽度 */
       .magic-panel { width: var(--panel-width, 280px); }
-      .magic-panel-grid,.magic-panel-more-grid.expanded { grid-template-columns:repeat(2,1fr); }
+      .magic-panel-grid,.magic-panel-more-grid.expanded { grid-template-columns:repeat(var(--panel-cols,2),1fr); }
     }
   `;
 
@@ -362,6 +375,7 @@ const MENU_REGISTRY = [
       this.injectStyles();
       this.createPanel();
       this.bindEvents();
+      this.bindColumnClicks();
       this.initScale();
       this.blockOriginalMenus();
       this.ensureMenuBindings();
@@ -404,6 +418,8 @@ const MENU_REGISTRY = [
                 <span class="scale-label">Aa</span>
                 <input type="range" class="magic-panel-scale-slider" min="60" max="150" value="100" step="5">
                 <span class="scale-value">100%</span>
+                <span class="scale-divider"></span>
+                <span class="magic-panel-cols" id="panelCols"><span data-cols="1">1</span><span data-cols="2">2</span><span data-cols="3" class="active">3</span><span data-cols="4">4</span></span>
               </div>
               <div class="magic-panel-body"><div data-content="tavern"></div></div>
               <div class="magic-panel-resize-handle"></div>
@@ -417,6 +433,8 @@ const MENU_REGISTRY = [
       this.editBtn = this.panel.querySelector('.magic-panel-edit-btn');
       this.sortBtn = this.panel.querySelector('.magic-panel-sort-btn');
       this.settingsBtn = this.panel.querySelector('.magic-panel-settings-btn');
+      this.colsEls = this.panel.querySelectorAll('.magic-panel-cols span');
+      this.initColumns();
       this.saveBar = this.panel.querySelector('.magic-panel-save-bar');
       this.saveBtn = this.panel.querySelector('.magic-panel-save-btn');
       this.content = this.panel.querySelector('[data-content="tavern"]');
@@ -512,6 +530,28 @@ const MENU_REGISTRY = [
         this.blockOriginalMenus();
         this.ensureMenuBindings();
       }, 500);
+    }
+
+    initColumns() {
+      var cols = parseInt(Store.mp.get(STORAGE_COLUMNS)) || 3;
+      cols = Math.max(1, Math.min(4, cols));
+      this.panel.style.setProperty('--panel-cols', cols);
+      this.colsEls.forEach(function(el) {
+        el.classList.toggle('active', parseInt(el.dataset.cols) === cols);
+      });
+    }
+
+    bindColumnClicks() {
+      var self = this;
+      this.colsEls.forEach(function(el) {
+        el.addEventListener('click', function() {
+          var cols = parseInt(this.dataset.cols);
+          self.panel.style.setProperty('--panel-cols', cols);
+          self.colsEls.forEach(function(e) { e.classList.toggle('active', e === el); });
+          try { Store.mp.set(STORAGE_COLUMNS, cols); } catch(e) { try { console.debug('[MP] save columns failed', e); } catch(_) {} }
+          requestAnimationFrame(function() { self.position(); });
+        });
+      });
     }
 
     initScale() {
