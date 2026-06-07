@@ -6,6 +6,12 @@
 - **可独立开关魔法面板和精简器**：扩展菜单设置中增加"启用魔法面板"和"启用精简器"勾选框。魔法面板关闭后精简器入口不受影响（魔棒/扩展菜单/斜杠命令均可打开）。
 - **弹窗头部"设置"→"手动重扫"**：点击即执行全量重新扫描，不再切换设置面板。
 
+### Fixed
+
+- **`setupAutoRescan()` 旧 Observer 残留**：热重载时旧 MutationObserver 未 disconnect → 新 observer 启动前先循环断开旧的。
+- **`setupKeyboard()` 重复绑定**：脚本热重载后 `keydown`/`resize` 监听器叠加 → 加入 `win.__mcKeyboardBound` 守卫。
+- **分栏切换按钮函数名错误**：事件中引用不存在的 `setColumnMode()` → 改为 `applyColumnMode()`。
+
 ### Changed
 
 - **设置内容整合到重排序页面**：恢复原始排序、清除插件数据、扩展菜单分栏（双栏/单栏）、重扫描消息 toast 全部移入重排序页面底部，设置面板整页删除。
