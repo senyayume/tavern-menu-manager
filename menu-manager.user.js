@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.4.0==
+// ==酒馆菜单管理器 v1.4.1==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -235,11 +235,11 @@ const MENU_REGISTRY = [
       display:flex; align-items:center; gap:4px; flex-shrink:0;
     }
     .magic-panel-edit-btn {
-      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
+      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:calc(14px * var(--content-scale,1));
     }
     .magic-panel-edit-btn.editing { color:#f39c12; }
     .magic-panel-settings-btn {
-      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
+      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:calc(14px * var(--content-scale,1));
     }
 
     .magic-panel-body {
@@ -341,11 +341,11 @@ const MENU_REGISTRY = [
       font-size:13px; cursor:pointer;
     }
     .magic-panel-fit-btn, .magic-panel-scale-btn {
-      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
+      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:calc(14px * var(--content-scale,1));
     }
     .magic-panel-fit-btn:hover, .magic-panel-scale-btn:hover { color:var(--SmartThemeQuoteColor,#5bc0de); }
     .magic-panel-sort-btn {
-      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:20px;
+      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:calc(14px * var(--content-scale,1));
     }
     .magic-panel-sort-btn.active { color:var(--SmartThemeQuoteColor,#5bc0de); }
     .magic-panel-btn .drag-handle { display:none; cursor:grab; color:var(--SmartThemeBodyColor,#ccc); position:absolute; left:4px; top:50%; transform:translateY(-50%); font-size:13px; user-select:none; }
