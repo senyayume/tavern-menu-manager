@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.4.1==
+// ==酒馆菜单管理器 v1.4.2==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -143,7 +143,7 @@ const MENU_REGISTRY = [
         containers: ['#extensions_settings', '#extensions_settings2'],
         hasHeader: '.inline-drawer-header',
         labelInHeader: 'b, [data-i18n]',
-        exclude: ['#qr_container', '#agent_system_container', '#tauritavern_version_container']
+        exclude: ['#qr_container', '#agent_system_container', '#tauritavern_version_container', '#menu-cleaner-settings']
       }
     }
   },
@@ -1115,6 +1115,18 @@ const MENU_REGISTRY = [
   var win = window.frameElement ? window.parent : window;
 
   let autoIdSeq = 0;
+  var _mcLabelCounters = {};
+  function _stableAutoId(label, el) {
+    var base = label ? 'mc-' + label.replace(/[^a-zA-Z0-9一-鿿]/g, '').substring(0, 20) : 'mc-item';
+    if (!base || base === 'mc-') base = 'mc-item';
+    if (!doc.getElementById(base)) return base;
+    if (_mcLabelCounters[base] === undefined) _mcLabelCounters[base] = 0;
+    var _candidate;
+    do {
+      _candidate = base + '-' + (++_mcLabelCounters[base]);
+    } while (doc.getElementById(_candidate));
+    return _candidate;
+  }
   let activeTab = 'hide';
   let extPanelVisible = false;
   let rescanTimer = null;
@@ -1777,12 +1789,11 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         for (var c = 0; c < children.length; c++) {
           var child = children[c];
           if (win.getComputedStyle(child).display === 'none') continue;
-          if (!child.id) { child.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
-
           var header = child.querySelector(group.discovery.hasHeader);
           if (!header) continue;
           var label = extractHeaderLabel(header);
           if (!label) continue;
+          if (!child.id) { child.id = _stableAutoId(label, child); }
 
           var selector = '#' + child.id;
           if (seen.has(selector)) continue;
@@ -1840,22 +1851,22 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           for (var i = 0; i < items.length; i++) {
             var item = items[i];
             if (item.style.display === 'none') continue;
-            if (!item.id) { item.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
+            // Extract label before ID assignment (needed for stable ID generation)
+            var labelEl = item.querySelector(group.discovery.labelIn);
+            var label = labelEl ? labelEl.textContent.trim() : item.textContent.trim();
+            if (!label) continue;
+            if (!item.id) { item.id = _stableAutoId(label, item); }
             var selector = '#' + item.id;
             if (seen.has(selector) || excludeSet.has(selector)) {
               // Duplicate ID from extension: reassign unique auto-id instead of skipping
-              if (item.id && item.id.indexOf('menu-cleaner-auto-') !== 0) {
-                item.id = 'menu-cleaner-auto-' + (autoIdSeq++);
+              if (item.id && item.id.indexOf('mc-') !== 0) {
+                item.id = _stableAutoId(label, item);
                 selector = '#' + item.id;
                 if (seen.has(selector)) continue;
               } else { continue; }
             }
             seen.add(selector);
             matchedElements.add(item);
-
-            var labelEl = item.querySelector(group.discovery.labelIn);
-            var label = labelEl ? labelEl.textContent.trim() : item.textContent.trim();
-            if (!label) continue;
 
             var entry = { selector: selector, label: label };
             if (columnIndex !== undefined) entry.column = columnIndex;
@@ -1878,11 +1889,11 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
               if (!span) continue;
               var labelText = span.textContent.trim();
               if (!labelText) continue;
-              if (!directChild.id) { directChild.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
+              if (!directChild.id) { directChild.id = _stableAutoId(labelText, directChild); }
               var ds = '#' + directChild.id;
               if (seen.has(ds) || excludeSet.has(ds)) {
-                if (directChild.id && directChild.id.indexOf('menu-cleaner-auto-') !== 0) {
-                  directChild.id = 'menu-cleaner-auto-' + (autoIdSeq++);
+                if (directChild.id && directChild.id.indexOf('mc-') !== 0) {
+                  directChild.id = _stableAutoId(labelText, directChild);
                   ds = '#' + directChild.id;
                   if (seen.has(ds)) continue;
                 } else { continue; }
@@ -1911,8 +1922,27 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
                 if ('#' + hcChild.id === group.items[_hc].selector) { _isHc = true; break; }
               }
             }
-            // Skip sub-scan for hardcoded containers — individual drawers inside would
-            // create duplicate entries pointing to the same underlying element.
+            // If the wrapper itself has a usable header, use it directly so that
+            // initialSnapshot and discoveryCache agree on the same selector.
+            // (Only do this for non-hardcoded containers with a stable id.)
+            if (hcChild.id && !_isHc) {
+              var _selfHeader = hcChild.querySelector(group.discovery.hasHeader);
+              if (_selfHeader) {
+                var _selfLabel = extractHeaderLabel(_selfHeader);
+                if (_selfLabel) {
+                  var _selfSel = '#' + hcChild.id;
+                  if (!seen.has(_selfSel)) {
+                    seen.add(_selfSel);
+                    var _selfEntry = { selector: _selfSel, label: _selfLabel };
+                    if (columnIndex !== undefined) _selfEntry.column = columnIndex;
+                    discovered.push(_selfEntry);
+                  }
+                  continue;
+                }
+              }
+            }
+            // Fallback: sub-scan children (for containers without own header,
+            // like #qr_container which acts as a wrapper around multiple drawers)
             if (!_isHc) {
               for (var wc = 0; wc < hcChild.children.length; wc++) {
                 var wrapperChild = hcChild.children[wc];
@@ -1921,11 +1951,11 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
                 if (!wHeader) continue;
                 var wLabel = extractHeaderLabel(wHeader);
                 if (!wLabel) continue;
-                if (!wrapperChild.id) { wrapperChild.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
+                if (!wrapperChild.id) { wrapperChild.id = _stableAutoId(wLabel, wrapperChild); }
                 var wSelector = '#' + wrapperChild.id;
                 if (seen.has(wSelector)) {
-                  if (wrapperChild.id && wrapperChild.id.indexOf('menu-cleaner-auto-') !== 0) {
-                    wrapperChild.id = 'menu-cleaner-auto-' + (autoIdSeq++);
+                  if (wrapperChild.id && wrapperChild.id.indexOf('mc-') !== 0) {
+                    wrapperChild.id = _stableAutoId(wLabel, wrapperChild);
                     wSelector = '#' + wrapperChild.id;
                     if (seen.has(wSelector)) continue;
                   } else { continue; }
@@ -1945,11 +1975,11 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           var label2 = extractHeaderLabel(header);
           if (!label2) continue;
 
-          if (!hcChild.id) { hcChild.id = 'menu-cleaner-auto-' + (autoIdSeq++); }
+          if (!hcChild.id) { hcChild.id = _stableAutoId(label2, hcChild); }
           var hcSelector = '#' + hcChild.id;
           if (seen.has(hcSelector)) {
-            if (hcChild.id && hcChild.id.indexOf('menu-cleaner-auto-') !== 0) {
-              hcChild.id = 'menu-cleaner-auto-' + (autoIdSeq++);
+            if (hcChild.id && hcChild.id.indexOf('mc-') !== 0) {
+              hcChild.id = _stableAutoId(label2, hcChild);
               hcSelector = '#' + hcChild.id;
               if (seen.has(hcSelector)) continue;
             } else { continue; }
@@ -1966,6 +1996,21 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function refreshDiscoveryCache(changedOnly) {
+    // Preserve user's saved column preferences before physical scan resets them
+    var _savedCols = {};
+    if (settings.discoveryCache) {
+      for (var _sg = 0; _sg < PANEL_GROUPS.length; _sg++) {
+        var _gid = PANEL_GROUPS[_sg].id;
+        var _cache = settings.discoveryCache[_gid];
+        if (!_cache) continue;
+        for (var _se = 0; _se < _cache.length; _se++) {
+          if (_cache[_se].column !== undefined) {
+            if (!_savedCols[_gid]) _savedCols[_gid] = {};
+            _savedCols[_gid][_cache[_se].selector] = _cache[_se].column;
+          }
+        }
+      }
+    }
     var filterSet = changedOnly ? changedOnly.split(',').reduce(function(s, id) { s[id.trim()] = true; return s; }, Object.create(null)) : null;
     for (var g = 0; g < PANEL_GROUPS.length; g++) {
       var group = PANEL_GROUPS[g];
@@ -2033,6 +2078,15 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         newItems.push({ selector: oldEntry.selector, label: oldEntry.label, column: oldEntry.column });
       }
 
+      // Restore saved columns that physical scan may have overwritten
+      if (_savedCols[group.id]) {
+        for (var _re = 0; _re < newItems.length; _re++) {
+          var _entry = newItems[_re];
+          if (_entry.selector in _savedCols[group.id] && _savedCols[group.id][_entry.selector] !== _entry.column) {
+            _entry.column = _savedCols[group.id][_entry.selector];
+          }
+        }
+      }
       settings.discoveryCache[group.id] = newItems;
 
       // reorder list not mutated here — only user drag writes to reorder
@@ -2101,14 +2155,33 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       labelMap[cachedLabels[cl].selector] = cachedLabels[cl].label;
     }
 
+    // Fallback: resolve unknown labels from DOM
+    function getLabelFromDom(sel) {
+      try {
+        var el = doc.querySelector(sel);
+        if (!el) return null;
+        var hd = el.querySelector('.inline-drawer-header');
+        if (hd) { var t = extractHeaderLabel(hd); if (t) return t; }
+        // Try finding any header-like element
+        var hd2 = el.querySelector('b, strong, .drawer-title, .title');
+        if (hd2) { var t2 = (hd2.textContent || '').trim(); if (t2) return t2; }
+      } catch(_) {}
+      return null;
+    }
+
     var result = [];
     var seen = new Set();
+    var seenLabels = {};
     for (var oi = 0; oi < order.length; oi++) {
       var selector = order[oi];
       if (seen.has(selector)) continue;
       seen.add(selector);
       if (settings.hiddenSelectors[selector]) continue;
-      result.push({ selector: selector, label: labelMap[selector] || selector });
+      var itemLabel = labelMap[selector] || getLabelFromDom(selector) || selector;
+      // Auto-ID entries that share a label with a stable-ID entry are duplicates — skip them
+      if ((selector.indexOf('#menu-cleaner-auto-') === 0 || selector.indexOf('#mc-') === 0) && seenLabels[itemLabel]) continue;
+      seenLabels[itemLabel] = true;
+      result.push({ selector: selector, label: itemLabel });
     }
 
     for (var hi2 = 0; hi2 < group.items.length; hi2++) {
@@ -2182,7 +2255,24 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         nativeCol2.style.display = settings.columnMode === 'single' ? 'none' : '';
       }
       nativeCol1.style.display = '';
+      // Reconcile discoveryCache columns with actual DOM positions
+      if (settings.discoveryCache && settings.discoveryCache['extensionsSettings']) {
+        var _dc = settings.discoveryCache['extensionsSettings'];
+        var _colDirty = false;
+        for (var _ui = 0; _ui < _dc.length; _ui++) {
+          var _e = _dc[_ui];
+          var _el = doc.querySelector(_e.selector);
+          if (!_el) continue;
+          var _actualCol = (nativeCol2 && nativeCol2.contains(_el)) ? 1 : (nativeCol1.contains(_el) ? 0 : -1);
+          if (_actualCol >= 0 && _e.column !== _actualCol) {
+            _e.column = _actualCol;
+            _colDirty = true;
+          }
+        }
+        if (_colDirty) saveSettings();
+      }
       win.setTimeout(function() { suppressObserver = false; }, 0);
+      try { win.__mcReorderApplied = true; } catch(_) {}
       return;
     }
 
@@ -2432,13 +2522,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   // ── UI: Entry in extensionsMenu ─────────────────────────────────
-  // injectMenuEntry: no longer injects a button into the wand menu.
-  // The wand menu is now fully managed by MagicPanel; MenuCleaner's popup
-  // is accessible via the settings gear in MagicPanel header or /menucleaner command.
-  function injectMenuEntry() {
-    // no-op: wand menu button removed per user preference
-  }
-
   // ── UI: Settings drawer in extensions_settings ──────────────────
   function injectSettingsEntry(retries) {
     if (retries === undefined) retries = 0;
@@ -2551,7 +2634,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     refreshDiscoveryCache();
     doc.getElementById('menu-cleaner-backdrop').style.display = 'block';
     getPopup().style.display = 'flex';
-    updatePopupView();
     refreshPopup();
     positionPopup();
   }
@@ -2579,9 +2661,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
 
-
-  function updatePopupView() {
-  }
 
   function switchTab(tabName) {
     activeTab = tabName;
@@ -2821,34 +2900,27 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       var toCol = dropTargetColumn;
 
       if (fromCol !== '-1' && toCol !== undefined && toCol !== '-1' && fromCol !== toCol) {
-        // Cross-column move
-        var selector = draggedItem.dataset.selector;
-        var items = getReorderItems(groupId);
-        var movedItem = null;
-        for (var mi = 0; mi < items.length; mi++) {
-          if (items[mi].selector === selector) { movedItem = items[mi]; break; }
+        // Cross-column move — operate on full reorder[] to preserve hidden items
+        var sel = draggedItem.dataset.selector;
+        var _vis = getReorderItems(groupId);
+        var _targetVis = (toIndex >= 0 && toIndex < _vis.length) ? _vis[toIndex] : null;
+        setColumnInCache(sel, groupId, parseInt(toCol));
+        var _fullOrd = settings.reorder[groupId] || [];
+        var _newOrd = [];
+        for (var _ri = 0; _ri < _fullOrd.length; _ri++) {
+          if (_fullOrd[_ri] !== sel) _newOrd.push(_fullOrd[_ri]);
         }
-        if (!movedItem) return;
-
-        setColumnInCache(selector, groupId, parseInt(toCol));
-
-        var remaining = items.filter(function(it) { return it.selector !== selector; });
-
-        var targetItem = null;
-        for (var ti = 0; ti < items.length; ti++) {
-          if (ti === toIndex) { targetItem = items[ti]; break; }
-        }
-        if (targetItem) {
-          var insertIdx = -1;
-          for (var ri = 0; ri < remaining.length; ri++) {
-            if (remaining[ri].selector === targetItem.selector) { insertIdx = ri; break; }
+        if (_targetVis) {
+          var _ia = -1;
+          for (var _ri2 = 0; _ri2 < _newOrd.length; _ri2++) {
+            if (_newOrd[_ri2] === _targetVis.selector) { _ia = _ri2; break; }
           }
-          remaining.splice(insertIdx + 1, 0, movedItem);
+          if (_ia >= 0) { _newOrd.splice(_ia + 1, 0, sel); }
+          else { _newOrd.push(sel); }
         } else {
-          remaining.push(movedItem);
+          _newOrd.push(sel);
         }
-
-        settings.reorder[groupId] = remaining.map(function(i) { return i.selector; });
+        settings.reorder[groupId] = _newOrd;
         saveSettings();
         try { console.debug('[MC] doReorder saved (cross-col)', groupId, JSON.stringify(settings.reorder[groupId])); } catch(_) {}
         if (groupId === 'extensionsSettings') {
@@ -2861,14 +2933,21 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         return;
       }
 
-      // Same-column reorder
-      var sitems = getReorderItems(groupId);
-      if (fromIndex < 0 || fromIndex >= sitems.length || toIndex < 0 || toIndex >= sitems.length) return;
-
-      var moved = sitems.splice(fromIndex, 1)[0];
-      sitems.splice(toIndex, 0, moved);
-
-      settings.reorder[groupId] = sitems.map(function(i) { return i.selector; });
+      // Same-column reorder — operate on full reorder[] to preserve hidden items
+      var sel = draggedItem.dataset.selector;
+      var _v = getReorderItems(groupId);
+      if (fromIndex < 0 || fromIndex >= _v.length || toIndex < 0 || toIndex >= _v.length) return;
+      var _tgtSel = _v[toIndex].selector;
+      var _full = settings.reorder[groupId] || [];
+      var _fi = -1, _ti = -1;
+      for (var _ix = 0; _ix < _full.length; _ix++) {
+        if (_full[_ix] === sel) _fi = _ix;
+        if (_full[_ix] === _tgtSel) _ti = _ix;
+      }
+      if (_fi < 0 || _ti < 0) return;
+      var _mv = _full.splice(_fi, 1)[0];
+      _full.splice(_ti, 0, _mv);
+      settings.reorder[groupId] = _full;
       saveSettings();
       try { console.debug('[MC] doReorder saved (same-col)', groupId, JSON.stringify(settings.reorder[groupId])); } catch(_) {}
       if (isPanelOpen() && groupId === 'extensionsSettings') win.setTimeout(function() { renderExtensionsPanel(); }, 0);
@@ -2980,25 +3059,23 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
               var sel = draggedItem.dataset.selector;
               var gid = draggedGroup;
               setColumnInCache(sel, gid, targetCol);
-              var itemsArr = getReorderItems(gid);
-              var moved = null;
-              for (var mi2 = 0; mi2 < itemsArr.length; mi2++) {
-                if (itemsArr[mi2].selector === sel) { moved = itemsArr[mi2]; break; }
+              // Operate on full reorder[] to preserve hidden items
+              var _fo = settings.reorder[gid] || [];
+              var _no = [];
+              for (var _rx = 0; _rx < _fo.length; _rx++) {
+                if (_fo[_rx] !== sel) _no.push(_fo[_rx]);
               }
-              if (moved) {
-                var remainder = itemsArr.filter(function(it) { return it.selector !== sel; });
-                remainder.push(moved);
-                settings.reorder[gid] = remainder.map(function(i) { return i.selector; });
-                saveSettings();
-                try { console.debug('[MC] doReorder saved (empty-section)', gid, JSON.stringify(settings.reorder[gid])); } catch(_) {}
-                if (gid === 'extensionsSettings') {
+              _no.push(sel);
+              settings.reorder[gid] = _no;
+              saveSettings();
+              try { console.debug('[MC] doReorder saved (empty-section)', gid, JSON.stringify(settings.reorder[gid])); } catch(_) {}
+              if (gid === 'extensionsSettings') {
                   applyNativeReorder(gid);
                   if (isPanelOpen()) win.setTimeout(function() { renderExtensionsPanel(); }, 0);
                 } else {
                   applyNativeReorder(gid);
                 }
                 renderReorderView();
-              }
             }
           }
         }
@@ -3288,7 +3365,6 @@ function renderHideView() {
         tabs[t].classList.remove('active');
       }
     }
-    updatePopupView();
     renderReorderView();
 
     applyNativeReorder('extensionsSettings');
@@ -3418,18 +3494,11 @@ function renderHideView() {
         try { win.__mcObservers[_do].disconnect(); } catch(_) {}
       }
     }
-    // SillyTavern event: chat/character changed
-    try {
-      // CHAT_CHANGED auto-rescan disabled: MutationObserver already covers
-      // the dynamic containers (#extensions_settings, #extensions_settings2).
-      // Chat switching doesn't add/remove extension panels, so this was redundant.
-    } catch (e) {
-      console.debug('[酒馆菜单管理器] 事件监听注册失败', e);
-    }
-
     // MutationObserver: watch for new elements
     var mcObservers = [];
     win.__mcObservers = mcObservers; // exposed for disconnect on disable
+    // Flag: set when reorder has been applied after init — used by observer for passive retry
+    win.__mcReorderApplied = false;
     var observeContainers = function () {
       var targets = ['#extensions_settings', '#extensions_settings2'];
       for (var t = 0; t < targets.length; t++) {
@@ -3440,6 +3509,10 @@ function renderHideView() {
             if (suppressObserver) return;
             for (var m = 0; m < mutations.length; m++) {
               if (mutations[m].addedNodes.length > 0) {
+                // If reorder hasn't been applied yet, apply it eagerly
+                if (!win.__mcReorderApplied) {
+                  try { if (settings.enabled) { applyNativeReorder('extensionsSettings'); win.__mcReorderApplied = true; console.debug('[MC] observer: passive reorder applied'); } } catch(_) {}
+                }
                 scheduleAutoRescan();
                 return;
               }
@@ -3465,41 +3538,51 @@ function renderHideView() {
 
   // ── Init ──────────────────────────────────────────────────────
   function init() {
+    try { console.debug('[MC] init start'); } catch(_) {}
     loadSettings();
     injectStyle();
+    try { console.debug('[MC] init step1 captureInitialSnapshot'); } catch(_) {}
 
     // Step 1: Capture initial snapshot (only on first run)
     captureInitialSnapshot();
+    try { console.debug('[MC] init step2 injectSettingsEntry'); } catch(_) {}
 
-    // Step 2: Scan to build discovery cache
-    refreshDiscoveryCache();
-
-    // Step 3: Inject UI elements
-    injectMenuEntry();
+    // Step 2: Inject UI elements (must be before cache refresh, otherwise our own
+    // injected elements like #menu-cleaner-settings get pruned from the cache)
     injectSettingsEntry();
+    try { console.debug('[MC] init step3 refreshDiscoveryCache'); } catch(_) {}
+
+    // Step 3: Scan to build discovery cache
+    refreshDiscoveryCache();
+    try { console.debug('[MC] init step4 applyHides+applyNativeReorder'); } catch(_) {}
 
     // Step 4: Create our extensions panel and intercept the native button
     if (settings.enabled) {
       applyHides();
       applyNativeReorder('extensionsSettings');
     }
+    try { console.debug('[MC] init step5 setupKeyboard/registerSlashCmd/setupAutoRescan'); } catch(_) {}
 
     // Step 5: Setup other systems
     setupKeyboard();
     registerSlashCmd();
     setupAutoRescan();
+    try { console.debug('[MC] init done, scheduling delayed rescan in 3s'); } catch(_) {}
 
     // Delayed re-scan catches extensions that inject buttons after init
     setTimeout(function () {
+      try { console.debug('[MC] delayed rescan starting'); } catch(_) {}
       refreshDiscoveryCache();
       if (settings.enabled) applyNativeReorder('extensionsSettings');
-      try { console.debug('[MC] delayed rescan done, reorder still:', JSON.stringify(settings.reorder['extensionsSettings'])); } catch(_) {}
+      try { console.debug('[MC] delayed rescan done, reorder:', JSON.stringify(settings.reorder['extensionsSettings'])); } catch(_) {}
       // Clean up stale discoveryCache entries not in DOM
       cleanupDiscoveryCache();
+      try { console.debug('[MC] delayed rescan cleanup done'); } catch(_) {}
     }, 3000);
   
   Runtime.openMenuCleanerPopup = openPopup;
   Runtime.isMenuCleanerPopupOpen = function() { var p = doc.getElementById('menu-cleaner-popup'); return p && p.style.display !== 'none'; };
+  try { console.debug('[MC] init complete'); } catch(_) {}
 }
 
   // Start when DOM is ready (parent page's DOM)

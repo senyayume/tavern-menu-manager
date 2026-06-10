@@ -89,6 +89,17 @@ tavern-menu-manager/
 
 ## 📋 更新日志
 
+### v1.4.2 (2025-06-10)
+
+**修复**
+- 排序持久化增强：doReorder 改用完整数组操作，列信息跨刷新保持
+- 初始化时序优化：先注入元素再扫缓存，避免自身元素列信息被覆盖
+- 稳定自动 ID：基于标签的 mc- 前缀 ID，无原生 ID 的扩展刷新后不变
+- captureInitialSnapshot 同步使用稳定 ID
+
+**清理**
+- 删除 injectMenuEntry()、updatePopupView() 空函数及空 try/catch
+
 ### v1.4.1 (2025-06-08)
 
 **修复**

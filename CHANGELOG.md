@@ -1,3 +1,22 @@
+## [1.4.2] - 2025-06-10
+
+### Fixed
+
+- **排序持久化 — 增强第2弹**：`doReorder` 改用完整 `settings.reorder[]` 数组操作，不再通过 `getReorderItems()`（含 hiddenSelectors 过滤）写回，因此已隐藏的扩展条目选择器不会从排序列表中丢失。
+- **跨栏列信息持久化**：发现缓存（`discoveryCache`）中的 `column` 值在 `refreshDiscoveryCache()` 每次执行前后得到双向保护（函数内 `_savedCols`），并在 `applyNativeReorder()` 执行后根据实际 DOM 位置同步更新。
+- **脚本自身元素不被排除**：`init()` 改为先注入设置 UI 再扫描发现缓存，避免 `#menu-cleaner-settings` 在扫描时因 DOM 不存在被移除列信息。同时将其加入 `extensionsSettings` 的 `exclude` 列表，不再在隐藏/排序视图中出现。
+- **稳定自动 ID**：无原生 ID 的扩展元素不再分配每次刷新变化的 `menu-cleaner-auto-N`，改为基于标签的 `mc-中文标签-N` 稳定 ID（首次分配后有冲突时递增后缀，刷新后不变）。
+
+### Changed
+
+- **初始化时序优化**：`injectSettingsEntry()` 移至 `refreshDiscoveryCache()` 之前，确保脚本自身 UI 元素在缓存扫描时已存在。
+- **`captureInitialSnapshot()` 同步稳定 ID**：快照与发现缓存使用相同 ID 分配策略，`resetAllReorders()` 等操作不再因 ID 不一致丢失条目。
+
+### Removed
+
+- **清理零风险死代码**：删除 `injectMenuEntry()` 空函数（+1 处调用）、`updatePopupView()` 空函数（+2 处调用）、空 try/catch 块，净减 ~20 行。
+
+---
 ## [1.4.1] - 2025-06-08
 
 ### Fixed
