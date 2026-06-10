@@ -1165,8 +1165,10 @@ const MENU_REGISTRY = [
       const saved = Store.mc.getAll();
       if (saved && typeof saved === 'object' && Object.keys(saved).length) {
         settings = Object.assign({}, defaultSettings, saved);
+        try { console.debug('[MC] loadSettings reorder:', JSON.stringify(settings.reorder)); } catch(_) {}
       } else {
         settings = Object.assign({}, defaultSettings);
+        try { console.debug('[MC] loadSettings: no saved data, using defaults'); } catch(_) {}
       }
 
       // MagicPanel compatibility: never hide MagicPanel's own UI elements
@@ -2153,6 +2155,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
   }
 
   function applyNativeReorder(groupId) {
+    try { var _orderPreview = getReorderItems(groupId); console.debug('[MC] applyNativeReorder', groupId, _orderPreview.length + ' items', JSON.stringify(_orderPreview.map(function(x){return x.selector;}))); } catch(_) {}
     if (groupId === 'extensionsSettings') {
       var nativeCol1 = doc.getElementById('extensions_settings');
       var nativeCol2 = doc.getElementById('extensions_settings2');
@@ -2674,6 +2677,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     html += '<button id="menu-cleaner-clear-data" class="menu_button menu-cleaner-settings-btn-full">清除插件数据</button>';
     html += '<div class="menu-cleaner-settings-divider">—————— 调试用内容 ——————</div>';
     html += '<div class="menu-cleaner-settings-row"><span>重扫描消息toast</span><label class="menu-cleaner-toggle"><input type="checkbox" id="menu-cleaner-rescan-toast"' + (settings.rescanToast ? ' checked' : '') + '><span class="menu-cleaner-slider"></span></label></div>';
+    html += '<button id="menu-cleaner-export-diagnostics" class="menu_button menu-cleaner-settings-btn-full" style="margin-top:4px;">导出诊断日志</button>';
     html += '</div>';
 
     body.innerHTML = html;
@@ -2719,6 +2723,61 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     colDual && colDual.addEventListener('click', function() { applyColumnMode('dual'); });
     var colSingle = doc.getElementById('menu-cleaner-colmode-single');
     colSingle && colSingle.addEventListener('click', function() { applyColumnMode('single'); });
+
+    var exportBtn = doc.getElementById('menu-cleaner-export-diagnostics');
+    exportBtn && exportBtn.addEventListener('click', function() {
+      var lines = [
+        '=== 酒馆菜单管理器 诊断日志 ===',
+        '版本: v1.4.1',
+        '浏览器: ' + (win.navigator.userAgent || 'N/A'),
+        '时间: ' + new Date().toISOString(),
+        '',
+        '--- settings.reorder (extensionsSettings) ---',
+        JSON.stringify(settings.reorder['extensionsSettings'] || []),
+        '',
+        '--- settings.reorder (options) ---',
+        JSON.stringify(settings.reorder['options'] || []),
+        '',
+        '--- settings.reorder (extensionsMenu) ---',
+        JSON.stringify(settings.reorder['extensionsMenu'] || []),
+        '',
+        '--- settings.initialSnapshot (extensionsSettings) ---',
+        JSON.stringify((settings.initialSnapshot && settings.initialSnapshot['extensionsSettings']) || []),
+        '',
+        '--- settings.discoveryCache (extensionsSettings) ---',
+        JSON.stringify((settings.discoveryCache && settings.discoveryCache['extensionsSettings']) || []),
+        '',
+        '--- settings.hiddenSelectors (active keys) ---',
+        JSON.stringify(Object.keys(settings.hiddenSelectors || {}).filter(function(k){ return settings.hiddenSelectors[k]; })),
+        '',
+        '--- other settings ---',
+        JSON.stringify({ enabled: settings.enabled, columnMode: settings.columnMode, rescanToast: settings.rescanToast }),
+        '',
+        '--- localStorage raw ---',
+        (function(){ try { return localStorage.getItem('menu_cleaner_settings') || 'EMPTY'; } catch(e) { return 'READ_ERROR: ' + e.message; } })(),
+        '',
+        '=== 结束 ==='
+      ].join('\n');
+
+      // Copy to clipboard
+      if (win.navigator && win.navigator.clipboard) {
+        try {
+          win.navigator.clipboard.writeText(lines).then(function() {
+            if (win.toastr) win.toastr.success('诊断日志已复制到剪贴板');
+          }).catch(function() { fallback(); });
+        } catch(e) { fallback(); }
+      } else { fallback(); }
+      function fallback() {
+        var ta = doc.createElement('textarea');
+        ta.value = lines;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        doc.body.appendChild(ta);
+        ta.select();
+        try { doc.execCommand('copy'); if (win.toastr) win.toastr.success('诊断日志已复制到剪贴板'); } catch(e) { win.alert('请手动复制诊断日志\n\n' + lines); }
+        doc.body.removeChild(ta);
+      }
+    });
 
     bindReorderDragEvents();
     positionPopup();
@@ -2791,6 +2850,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
         settings.reorder[groupId] = remaining.map(function(i) { return i.selector; });
         saveSettings();
+        try { console.debug('[MC] doReorder saved (cross-col)', groupId, JSON.stringify(settings.reorder[groupId])); } catch(_) {}
         if (groupId === 'extensionsSettings') {
           applyNativeReorder(groupId);
           if (isPanelOpen()) win.setTimeout(function() { renderExtensionsPanel(); }, 0);
@@ -2810,6 +2870,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
       settings.reorder[groupId] = sitems.map(function(i) { return i.selector; });
       saveSettings();
+      try { console.debug('[MC] doReorder saved (same-col)', groupId, JSON.stringify(settings.reorder[groupId])); } catch(_) {}
       if (isPanelOpen() && groupId === 'extensionsSettings') win.setTimeout(function() { renderExtensionsPanel(); }, 0);
       if (groupId !== 'extensionsSettings') applyNativeReorder(groupId);
       renderReorderView();
@@ -2929,6 +2990,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
                 remainder.push(moved);
                 settings.reorder[gid] = remainder.map(function(i) { return i.selector; });
                 saveSettings();
+                try { console.debug('[MC] doReorder saved (empty-section)', gid, JSON.stringify(settings.reorder[gid])); } catch(_) {}
                 if (gid === 'extensionsSettings') {
                   applyNativeReorder(gid);
                   if (isPanelOpen()) win.setTimeout(function() { renderExtensionsPanel(); }, 0);
@@ -3431,6 +3493,7 @@ function renderHideView() {
     setTimeout(function () {
       refreshDiscoveryCache();
       if (settings.enabled) applyNativeReorder('extensionsSettings');
+      try { console.debug('[MC] delayed rescan done, reorder still:', JSON.stringify(settings.reorder['extensionsSettings'])); } catch(_) {}
       // Clean up stale discoveryCache entries not in DOM
       cleanupDiscoveryCache();
     }, 3000);
