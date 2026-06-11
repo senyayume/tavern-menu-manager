@@ -1,3 +1,12 @@
+## [1.4.3] - 2026-06-11
+
+### Fixed
+
+- **手机端拖拽无法在同一列内上下移动**：`touchend` 中当 `elementFromPoint` 返回拖拽元素自身或空时（窄屏常见），按 Y 坐标距离找最近元素作插入点。
+- **手机端拖拽产生残影**：`pointerdown`/`pointermove`/`pointerup` 三处新增 `if (e.pointerType === 'touch') return;` 跳过触摸事件，避免与 `touchstart`/`touchmove`/`touchend` 处理器争抢 DOM state 及创建重复 ghost；`cleanupDrag` 新增防御性移除所有 `.menu-cleaner-ghost`。
+- **手机端拖拽缺少视觉反馈**：`touchmove` 添加与 `touchend` 相同的 Y 坐标降级逻辑，拖动过程中正确显示蓝色左边框指示插入位置。
+
+---
 ## [1.4.2] - 2025-06-10
 
 ### Fixed

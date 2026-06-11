@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.4.2==
+// ==酒馆菜单管理器 v1.4.3==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -2966,6 +2966,10 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         touchGhost.remove();
         touchGhost = null;
       }
+      // Remove any leftover ghost elements (mobile browsers fire both
+      // pointerdown + touchstart, creating duplicate ghosts)
+      var leftoverGhosts = doc.querySelectorAll('.menu-cleaner-ghost');
+      for (var _lg = 0; _lg < leftoverGhosts.length; _lg++) leftoverGhosts[_lg].remove();
       draggedItem = null;
       draggedGroup = null;
       draggedIndex = -1;
@@ -2980,6 +2984,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       // ── Desktop pointer drag ─────────────────────────
       item.addEventListener('pointerdown', function(e) {
         if (e.button !== 0) return; // left button only
+        if (e.pointerType === 'touch') return; // touch handled by touchstart
         e.preventDefault(); // prevent text selection during drag
         dragActive = true;
         draggedItem = this;
@@ -3003,6 +3008,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
       item.addEventListener('pointermove', function(e) {
         if (!draggedItem) return;
+        if (e.pointerType === 'touch') return;
         if (touchGhost) {
           touchGhost.style.left = (e.clientX - touchGhost.offsetWidth / 2) + 'px';
           touchGhost.style.top = (e.clientY - 20) + 'px';
@@ -3035,6 +3041,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
       item.addEventListener('pointerup', function(e) {
         if (!draggedItem) return;
+        if (e.pointerType === 'touch') return;
 
         if (touchGhost) touchGhost.style.display = 'none';
         var target = doc.elementFromPoint(e.clientX, e.clientY);
@@ -3083,7 +3090,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         cleanupDrag();
       });
 
-      item.addEventListener('pointercancel', function() { cleanupDrag(); });
+      item.addEventListener('pointercancel', function(e) { if (e.pointerType !== 'touch') cleanupDrag(); });
 
       // ── Mobile touch ─────────────────────────────────
       var supportsTouch = 'ontouchstart' in win || (win.navigator && win.navigator.maxTouchPoints > 0);
@@ -3129,6 +3136,22 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           if (touchGhost) touchGhost.style.display = '';
 
           var targetItem = target ? target.closest('.menu-cleaner-reorder-item') : null;
+          if (!targetItem || targetItem === draggedItem) {
+            // Narrow mobile: fallback to nearest item by Y
+            var _col = draggedItem ? draggedItem.dataset.column : null;
+            var _allItems = doc.querySelectorAll('.menu-cleaner-reorder-item');
+            var _nearest = null, _nearestDist = Infinity;
+            for (var _ti = 0; _ti < _allItems.length; _ti++) {
+              if (_allItems[_ti] === draggedItem) continue;
+              if (_allItems[_ti].dataset.group !== draggedGroup) continue;
+              if (_col !== null && _allItems[_ti].dataset.column !== _col) continue;
+              var _rc = _allItems[_ti].getBoundingClientRect();
+              var _cy = _rc.top + _rc.height / 2;
+              var _dist = Math.abs(touch.clientY - _cy);
+              if (_dist < _nearestDist) { _nearestDist = _dist; _nearest = _allItems[_ti]; }
+            }
+            targetItem = _nearest;
+          }
 
           var allItems = doc.querySelectorAll('.menu-cleaner-reorder-item');
           for (var ai = 0; ai < allItems.length; ai++) {
@@ -3155,6 +3178,25 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
               targetItem.classList.remove('drag-over');
               dropTargetColumn = targetItem.dataset.column;
               doReorder(draggedIndex, parseInt(targetItem.dataset.index), draggedGroup);
+            } else {
+              // Fallback for narrow mobile: elementFromPoint often returns draggedItem itself.
+              // Find the nearest item in the same column by touch Y position.
+              var _col = draggedItem ? draggedItem.dataset.column : null;
+              var _allItems = doc.querySelectorAll('.menu-cleaner-reorder-item');
+              var _nearest = null, _nearestDist = Infinity;
+              for (var _ti = 0; _ti < _allItems.length; _ti++) {
+                if (_allItems[_ti] === draggedItem) continue;
+                if (_allItems[_ti].dataset.group !== draggedGroup) continue;
+                if (_col !== null && _allItems[_ti].dataset.column !== _col) continue;
+                var _rc = _allItems[_ti].getBoundingClientRect();
+                var _cy = _rc.top + _rc.height / 2;
+                var _dist = Math.abs(touch.clientY - _cy);
+                if (_dist < _nearestDist) { _nearestDist = _dist; _nearest = _allItems[_ti]; }
+              }
+              if (_nearest && _nearest !== draggedItem) {
+                dropTargetColumn = _nearest.dataset.column;
+                doReorder(draggedIndex, parseInt(_nearest.dataset.index), draggedGroup);
+              }
             }
           }
 
