@@ -1,3 +1,10 @@
+## [1.4.4] - 2026-06-11
+
+### Fixed
+
+- **扩展菜单出现重复"快速回复"条目**：`#qr_container` 包装器自身有了 `.inline-drawer-header` 后被自检路径作为独立条目加入，与硬编码的 `#qr--settings` 重复。新增 `_hasHardcodedChild` 检查：当 `extension_container` 容器包含硬编码子项时，跳过自检，交由子扫描路径处理。
+
+---
 ## [1.4.3] - 2026-06-11
 
 ### Fixed

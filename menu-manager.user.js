@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.4.3==
+// ==酒馆菜单管理器 v1.4.4==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -1917,15 +1917,25 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           // separately instead of being lumped under the wrapper.
           if (hcChild.classList.contains('extension_container') && !hcChild.classList.contains('inline-drawer')) {
             var _isHc = false;
+            var _hasHardcodedChild = false;
             if (hcChild.id) {
               for (var _hc = 0; _hc < group.items.length; _hc++) {
                 if ('#' + hcChild.id === group.items[_hc].selector) { _isHc = true; break; }
               }
             }
-            // If the wrapper itself has a usable header, use it directly so that
-            // initialSnapshot and discoveryCache agree on the same selector.
-            // (Only do this for non-hardcoded containers with a stable id.)
+            // Check if this wrapper contains any hardcoded item (e.g. #qr_container
+            // wraps #qr--settings which is already a hardcoded item). If so, skip
+            // creating a separate entry for the wrapper itself — let the hardcoded
+            // items or the sub-scan handle discovery.
             if (hcChild.id && !_isHc) {
+              for (var _hc2 = 0; _hc2 < group.items.length; _hc2++) {
+                var _hcEl = doc.querySelector(group.items[_hc2].selector);
+                if (_hcEl && hcChild.contains(_hcEl)) { _hasHardcodedChild = true; break; }
+              }
+            }
+            // If the wrapper itself has a usable header AND wraps no hardcoded item,
+            // use it directly so that initialSnapshot and discoveryCache agree.
+            if (hcChild.id && !_isHc && !_hasHardcodedChild) {
               var _selfHeader = hcChild.querySelector(group.discovery.hasHeader);
               if (_selfHeader) {
                 var _selfLabel = extractHeaderLabel(_selfHeader);
