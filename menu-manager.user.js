@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.4.5==
+// ==酒馆菜单管理器 v1.5.0==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -208,15 +208,15 @@ const MENU_REGISTRY = [
     }
     .magic-panel {
       position:absolute;
-      background:var(--SmartThemeBlurTintColor,#1a1a2e);
-      border:1px solid var(--SmartThemeBorderColor,#333);
+      background:var(--mc-bg,var(--SmartThemeBlurTintColor,#1a1a2e));
+      border:1px solid var(--mc-border-color,var(--SmartThemeBorderColor,#333));
       border-radius:12px;
       /* 宽度使用自定义变量，可在代码顶部 PANEL_WIDTH 调整 */
       width: var(--panel-width, 320px);
       max-width:90vw;
       max-height:65vh;
       display:flex; flex-direction:column; overflow:hidden;
-      box-shadow:0 8px 32px rgba(0,0,0,0.5);
+      box-shadow:var(--mc-shadow,0 8px 32px rgba(0,0,0,0.5));
       transform:scale(0.95);
       transition:transform 0.15s;
     }
@@ -225,21 +225,21 @@ const MENU_REGISTRY = [
     }
     .magic-panel-header {
       display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; justify-content:space-between;
-      padding:10px 14px; border-bottom:1px solid var(--SmartThemeBorderColor);
+      padding:10px 14px; border-bottom:1px solid var(--mc-border-color,var(--SmartThemeBorderColor));
     }
     .magic-panel-title {
       font-size: calc(14px * var(--content-scale, 1));
-      color:var(--SmartThemeBodyColor,#e0e0e0); white-space:nowrap; flex-shrink:0;
+      color:var(--mc-text,var(--SmartThemeBodyColor,#e0e0e0)); white-space:nowrap; flex-shrink:0;
     }
     .magic-panel-actions {
       display:flex; align-items:center; gap:4px; flex-shrink:0;
     }
     .magic-panel-edit-btn {
-      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:calc(14px * var(--content-scale,1));
+      cursor:pointer; color:var(--mc-text-muted,var(--SmartThemeBodyColor,#e0e0e0)); font-size:calc(14px * var(--content-scale,1));
     }
     .magic-panel-edit-btn.editing { color:#f39c12; }
     .magic-panel-settings-btn {
-      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:calc(14px * var(--content-scale,1));
+      cursor:pointer; color:var(--mc-text-muted,var(--SmartThemeBodyColor,#e0e0e0)); font-size:calc(14px * var(--content-scale,1));
     }
 
     .magic-panel-body {
@@ -249,28 +249,28 @@ const MENU_REGISTRY = [
       position:absolute; bottom:0; right:0;
       width:16px; height:16px;
       cursor:se-resize; opacity:0.3;
-      border-right:3px solid var(--SmartThemeBodyColor,#ccc);
-      border-bottom:3px solid var(--SmartThemeBodyColor,#ccc);
+      border-right:3px solid var(--mc-text-muted,var(--SmartThemeBodyColor,#ccc));
+      border-bottom:3px solid var(--mc-text-muted,var(--SmartThemeBodyColor,#ccc));
       border-radius:0 0 4px 0; z-index:2;
     }
     .magic-panel-resize-handle:hover { opacity:0.7; }
     .magic-panel-btn {
       display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
       padding:12px 6px; border-radius:8px;
-      border:1px solid var(--SmartThemeBorderColor);
+      border:1px solid var(--mc-border-color,var(--SmartThemeBorderColor));
       cursor:pointer; min-height:64px; position:relative;
-      background:rgba(255,255,255,0.03); color:var(--SmartThemeBodyColor,#ccc);
+      background:var(--mc-hover-bg,rgba(255,255,255,0.03)); color:var(--mc-text,var(--SmartThemeBodyColor,#ccc));
     }
     .magic-panel-grid, .magic-panel-more-grid.expanded {
       display:grid; grid-template-columns:repeat(var(--panel-cols,3),1fr); gap:8px;
     }
 
     .magic-panel-btn:hover {
-      background:rgba(255,255,255,0.08);
-      border-color:var(--SmartThemeQuoteColor,#5bc0de);
+      background:var(--mc-hover-bg-strong,rgba(255,255,255,0.08));
+      border-color:var(--mc-accent,var(--SmartThemeQuoteColor,#5bc0de));
     }
     .magic-panel-btn.selected {
-      border-color:#f39c12; background:rgba(243,156,18,0.15);
+      border-color:var(--mc-accent,#f39c12); background:rgba(var(--mc-accent-rgb,243,156,18),0.15);
     }
     .magic-panel-btn .edit-check {
       display:none; position:absolute; top:4px; right:4px;
@@ -291,7 +291,7 @@ const MENU_REGISTRY = [
       margin-top:12px; border-top:1px solid var(--SmartThemeBorderColor); padding-top:8px;
     }
     .magic-panel-more-toggle {
-      cursor:pointer; display:flex; align-items:center; gap:6px; color:#888;
+      cursor:pointer; display:flex; align-items:center; gap:6px; color:var(--mc-text-muted,#888);
     }
     .magic-panel-more-toggle:hover { color:var(--SmartThemeQuoteColor); }
     .magic-panel-more-grid { display:none; margin-top:8px; }
@@ -300,8 +300,8 @@ const MENU_REGISTRY = [
     }
     .magic-panel-scale-bar {
       display:none; flex-wrap:wrap; align-items:center; gap:6px 8px;
-      padding:6px 14px; border-bottom:1px solid var(--SmartThemeBorderColor);
-      background:rgba(255,255,255,0.02);
+      padding:6px 14px; border-bottom:1px solid var(--mc-border-color,var(--SmartThemeBorderColor));
+      background:var(--mc-hover-bg,rgba(255,255,255,0.02));
     }
     .magic-panel-scale-bar.active { display:flex; }
     .magic-panel-scale-bar .scale-label { font-size:13px; color:var(--SmartThemeBodyColor,#ccc); cursor:pointer; }
@@ -1131,6 +1131,7 @@ const MENU_REGISTRY = [
   let extPanelVisible = false;
   let rescanTimer = null;
   let dragActive = false; // set while user is dragging a reorder item
+  let importFileInput = null; // hidden file input for importing settings (hoisted to survive re-renders)
   let suppressObserver = false; // suppress MutationObserver during programmatic DOM moves
   const nativeHomes = new Map();
 
@@ -1152,18 +1153,147 @@ const MENU_REGISTRY = [
   ];
 
   // ── Settings persistence via localStorage ─────────────────────
-  const defaultSettings = {
+  const SCRIPT_VERSION = '1.5.0'; // keep in sync with header
+
+const defaultSettings = {
     enabled: true,
     hiddenSelectors: {},
     discoveryCache: {},  // { groupId: [{selector, label, column?}, ...] }
     reorder: {},          // { groupId: [selector, ...] }
     initialSnapshot: null, // set once on first init, cleared by "清除插件数据"
     rescanToast: false,
-    columnMode: 'dual'   // 'single' | 'dual'
+    columnMode: 'dual',  // 'single' | 'dual'
+    theme: 'default'
   };
 
   let settings = {};
 
+  // ── Theme presets ──
+  const THEMES = (function() {
+    var KF = '@keyframes mc-shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}@keyframes mc-pulse{0%,100%{opacity:0.6}50%{opacity:1}}@keyframes mc-glow{0%,100%{box-shadow:0 0 8px rgba(V,0.2),0 0 20px rgba(V,0.1)}50%{box-shadow:0 0 12px rgba(V,0.4),0 0 30px rgba(V,0.15)}}';
+    function V(t,a){return KF.replace(/V/g,t)+a}
+    function p(v){return '.menu-cleaner-popup'+v+'.magic-panel'+v}
+    function m(bg,border,shadow,text,muted,accent,accRgb,hoverBg,strongBg){
+      return '.magic-panel{background:'+bg+'!important;border-color:'+border+'!important;box-shadow:'+shadow+'!important}'+
+        '.magic-panel-header{border-bottom-color:'+border+'!important}'+
+        '.magic-panel-title{color:'+text+'!important}'+
+        '.magic-panel-btn{background:'+hoverBg+'!important;border-color:'+border+'!important}'+
+        '.magic-panel-btn:hover{background:'+strongBg+'!important;border-color:'+accent+'!important}'+
+        '.magic-panel-btn.selected{background:rgba('+accRgb+',0.15)!important;border-color:'+accent+'!important}'+
+        '.magic-panel-btn .btn-label{color:'+text+'!important}'+
+        '.magic-panel-btn i{color:'+text+'!important}'+
+        '.magic-panel-edit-btn.editing{color:'+accent+'!important}'+
+        '.magic-panel-more-toggle{color:'+muted+'!important}'+
+        '.magic-panel-more-toggle:hover{color:'+accent+'!important}'
+    }
+    return {
+      glazed: {
+        label: '琉璃',
+        css: V('109,213,213',
+          // Animated gradient popup
+          p('{--mc-bg:linear-gradient(145deg,#0e2838,#16323e,#0e2838)!important;--mc-bg-header:linear-gradient(90deg,#0a1e28,#16323e)!important;--mc-bg-body:linear-gradient(180deg,#122a36,#0e2430)!important;--mc-bg-input:rgba(109,213,213,0.06)!important;--mc-border-color:rgba(42,170,190,0.3)!important;--mc-border-subtle:rgba(42,170,190,0.15)!important;--mc-border-accent:#5dd5d5!important;--mc-text:#c8f0f0!important;--mc-text-muted:#6ab0b0!important;--mc-accent:#5dd5d5!important;--mc-accent-rgb:93,213,213!important;--mc-hover-bg:rgba(93,213,213,0.08)!important;--mc-hover-bg-strong:rgba(93,213,213,0.15)!important;--mc-active-bg:rgba(93,213,213,0.25)!important;--mc-slider-off:#1a4848!important;--mc-slider-on:#1a7880!important;--mc-slider-dot:#5dd5d5!important;--mc-shadow:0 8px 40px rgba(0,0,0,0.7)!important;--mc-glow:0 0 80px rgba(93,213,213,0.08)!important;--mc-font-weight:600!important;background-size:200% 200%!important;animation:mc-shift 10s ease infinite!important}')  + m('#0e2838 linear-gradient(145deg,#0e2838,#16323e,#0e2838)','rgba(42,170,190,0.3)','0 8px 32px rgba(0,0,0,0.7)','#c8f0f0','#6ab0b0','#5dd5d5','93,213,213','rgba(93,213,213,0.08)','rgba(93,213,213,0.15)')+
+          // Glass header
+          '.menu-cleaner-popup-header{backdrop-filter:blur(4px)!important;-webkit-backdrop-filter:blur(4px)!important}' +
+          // Title glow
+          '.menu-cleaner-popup-header h2{text-shadow:0 0 20px rgba(93,213,213,0.3)!important}' +
+          // Pulsing active tab
+          '.menu-cleaner-tab.active{animation:mc-glow 2s ease-in-out infinite!important}' +
+          // Neon drag glow
+          '.menu-cleaner-reorder-item.drag-over{border-left-color:#5dd5d5!important;border-left-width:4px!important;box-shadow:0 0 20px rgba(93,213,213,0.15),inset 0 0 20px rgba(93,213,213,0.04)!important}' +
+          '.menu-cleaner-reorder-column-section.drag-over-section{outline:2px solid #5dd5d5!important;box-shadow:inset 0 0 30px rgba(93,213,213,0.06)!important}' +
+          // Glowing slider
+          '.menu-cleaner-toggle input:checked+.menu-cleaner-slider{box-shadow:0 0 12px rgba(93,213,213,0.3)!important}' +
+          // Backdrop tint
+          '.menu-cleaner-backdrop{background:rgba(8,28,38,0.72)!important;backdrop-filter:blur(3px)!important;-webkit-backdrop-filter:blur(3px)!important}' +
+          // Scrollbar glow
+          '.menu-cleaner-popup-body::-webkit-scrollbar-thumb:hover{background:#5dd5d5!important;box-shadow:0 0 8px rgba(93,213,213,0.3)!important}' +
+          // Animated shimmer on category hover
+          '.menu-cleaner-category-header:hover{border-left-color:#5dd5d5!important}'
+        )
+      },
+      warm: {
+        label: '暖阳',
+        css: V('212,136,58',
+          p('{--mc-bg:linear-gradient(145deg,#2a1a0e,#322010,#2a1a0e)!important;--mc-bg-header:linear-gradient(90deg,#1e140e,#2a1e10)!important;--mc-bg-body:linear-gradient(180deg,#261a10,#22160e)!important;--mc-bg-input:rgba(212,136,58,0.06)!important;--mc-border-color:rgba(180,100,40,0.3)!important;--mc-border-subtle:rgba(180,100,40,0.15)!important;--mc-border-accent:#e89840!important;--mc-text:#f0d4b0!important;--mc-text-muted:#b08050!important;--mc-accent:#e89840!important;--mc-accent-rgb:232,152,64!important;--mc-hover-bg:rgba(232,152,64,0.08)!important;--mc-hover-bg-strong:rgba(232,152,64,0.15)!important;--mc-active-bg:rgba(232,152,64,0.25)!important;--mc-slider-off:#5a3018!important;--mc-slider-on:#7a5028!important;--mc-slider-dot:#e89840!important;--mc-shadow:0 8px 40px rgba(0,0,0,0.7)!important;--mc-glow:0 0 80px rgba(232,152,64,0.08)!important;--mc-font-weight:600!important;background-size:200% 200%!important;animation:mc-shift 12s ease infinite!important}')  + m('#2a1a0e linear-gradient(145deg,#2a1a0e,#322010,#2a1a0e)','rgba(180,100,40,0.3)','0 8px 32px rgba(0,0,0,0.7)','#f0d4b0','#b08050','#e89840','232,152,64','rgba(232,152,64,0.08)','rgba(232,152,64,0.15)')+
+          '.menu-cleaner-popup-header{backdrop-filter:blur(4px)!important;-webkit-backdrop-filter:blur(4px)!important}' +
+          '.menu-cleaner-popup-header h2{text-shadow:0 0 20px rgba(232,152,64,0.3)!important}' +
+          '.menu-cleaner-tab.active{animation:mc-glow 2s ease-in-out infinite!important}' +
+          '.menu-cleaner-reorder-item.drag-over{border-left-color:#e89840!important;border-left-width:4px!important;box-shadow:0 0 20px rgba(232,152,64,0.15),inset 0 0 20px rgba(232,152,64,0.04)!important}' +
+          '.menu-cleaner-reorder-column-section.drag-over-section{outline:2px solid #e89840!important;box-shadow:inset 0 0 30px rgba(232,152,64,0.06)!important}' +
+          '.menu-cleaner-toggle input:checked+.menu-cleaner-slider{box-shadow:0 0 12px rgba(232,152,64,0.3)!important}' +
+          '.menu-cleaner-backdrop{background:rgba(35,20,8,0.72)!important;backdrop-filter:blur(3px)!important;-webkit-backdrop-filter:blur(3px)!important}' +
+          '.menu-cleaner-popup-body::-webkit-scrollbar-thumb:hover{background:#e89840!important;box-shadow:0 0 8px rgba(232,152,64,0.3)!important}' +
+          '.menu-cleaner-category-header:hover{border-left-color:#e89840!important}'
+        )
+      },
+      violet: {
+        label: '暗紫',
+        css: V('155,109,206',
+          p('{--mc-bg:linear-gradient(145deg,#1a1028,#221432,#1a1028)!important;--mc-bg-header:linear-gradient(90deg,#120c1e,#1a1028)!important;--mc-bg-body:linear-gradient(180deg,#181028,#140e22)!important;--mc-bg-input:rgba(155,109,206,0.06)!important;--mc-border-color:rgba(130,80,180,0.3)!important;--mc-border-subtle:rgba(130,80,180,0.15)!important;--mc-border-accent:#b080e8!important;--mc-text:#d8c0f0!important;--mc-text-muted:#9070b0!important;--mc-accent:#b080e8!important;--mc-accent-rgb:176,128,232!important;--mc-hover-bg:rgba(176,128,232,0.08)!important;--mc-hover-bg-strong:rgba(176,128,232,0.15)!important;--mc-active-bg:rgba(176,128,232,0.25)!important;--mc-slider-off:#281c38!important;--mc-slider-on:#483868!important;--mc-slider-dot:#b080e8!important;--mc-shadow:0 8px 40px rgba(0,0,0,0.7)!important;--mc-glow:0 0 80px rgba(176,128,232,0.08)!important;--mc-font-weight:600!important;background-size:200% 200%!important;animation:mc-shift 9s ease infinite!important}')  + m('#1a1028 linear-gradient(145deg,#1a1028,#221432,#1a1028)','rgba(130,80,180,0.3)','0 8px 32px rgba(0,0,0,0.7)','#d8c0f0','#9070b0','#b080e8','176,128,232','rgba(176,128,232,0.08)','rgba(176,128,232,0.15)')+
+          '.menu-cleaner-popup-header{backdrop-filter:blur(4px)!important;-webkit-backdrop-filter:blur(4px)!important}' +
+          '.menu-cleaner-popup-header h2{text-shadow:0 0 20px rgba(176,128,232,0.3)!important}' +
+          '.menu-cleaner-tab.active{animation:mc-glow 2s ease-in-out infinite!important}' +
+          '.menu-cleaner-reorder-item.drag-over{border-left-color:#b080e8!important;border-left-width:4px!important;box-shadow:0 0 20px rgba(176,128,232,0.15),inset 0 0 20px rgba(176,128,232,0.04)!important}' +
+          '.menu-cleaner-reorder-column-section.drag-over-section{outline:2px solid #b080e8!important;box-shadow:inset 0 0 30px rgba(176,128,232,0.06)!important}' +
+          '.menu-cleaner-toggle input:checked+.menu-cleaner-slider{box-shadow:0 0 12px rgba(176,128,232,0.3)!important}' +
+          '.menu-cleaner-backdrop{background:rgba(16,8,30,0.72)!important;backdrop-filter:blur(3px)!important;-webkit-backdrop-filter:blur(3px)!important}' +
+          '.menu-cleaner-popup-body::-webkit-scrollbar-thumb:hover{background:#b080e8!important;box-shadow:0 0 8px rgba(176,128,232,0.3)!important}' +
+          '.menu-cleaner-category-header:hover{border-left-color:#b080e8!important}'
+        )
+      },
+      aurora: {
+        label: '极光',
+        css: V('80,212,160',
+          p('{--mc-bg:linear-gradient(145deg,#081e16,#0c2a1e,#081e16)!important;--mc-bg-header:linear-gradient(90deg,#061812,#0c281c)!important;--mc-bg-body:linear-gradient(180deg,#0a2218,#081c14)!important;--mc-bg-input:rgba(80,212,160,0.06)!important;--mc-border-color:rgba(60,170,120,0.3)!important;--mc-border-subtle:rgba(60,170,120,0.15)!important;--mc-border-accent:#50d4a0!important;--mc-text:#bcf0d8!important;--mc-text-muted:#60b090!important;--mc-accent:#50d4a0!important;--mc-accent-rgb:80,212,160!important;--mc-hover-bg:rgba(80,212,160,0.08)!important;--mc-hover-bg-strong:rgba(80,212,160,0.15)!important;--mc-active-bg:rgba(80,212,160,0.25)!important;--mc-slider-off:#183a2c!important;--mc-slider-on:#206a50!important;--mc-slider-dot:#50d4a0!important;--mc-shadow:0 8px 40px rgba(0,0,0,0.7)!important;--mc-glow:0 0 80px rgba(80,212,160,0.06)!important;--mc-font-weight:600!important;background-size:200% 200%!important;animation:mc-shift 11s ease infinite!important}')  + m('#081e16 linear-gradient(145deg,#081e16,#0c2a1e,#081e16)','rgba(60,170,120,0.3)','0 8px 32px rgba(0,0,0,0.7)','#bcf0d8','#60b090','#50d4a0','80,212,160','rgba(80,212,160,0.08)','rgba(80,212,160,0.15)')+
+          '.menu-cleaner-popup-header{backdrop-filter:blur(4px)!important;-webkit-backdrop-filter:blur(4px)!important}' +
+          '.menu-cleaner-popup-header h2{text-shadow:0 0 20px rgba(80,212,160,0.3)!important}' +
+          '.menu-cleaner-tab.active{animation:mc-glow 2s ease-in-out infinite!important}' +
+          '.menu-cleaner-reorder-item.drag-over{border-left-color:#50d4a0!important;border-left-width:4px!important;box-shadow:0 0 20px rgba(80,212,160,0.15),inset 0 0 20px rgba(80,212,160,0.04)!important}' +
+          '.menu-cleaner-reorder-column-section.drag-over-section{outline:2px solid #50d4a0!important;box-shadow:inset 0 0 30px rgba(80,212,160,0.06)!important}' +
+          '.menu-cleaner-toggle input:checked+.menu-cleaner-slider{box-shadow:0 0 12px rgba(80,212,160,0.3)!important}' +
+          '.menu-cleaner-backdrop{background:rgba(6,28,18,0.72)!important;backdrop-filter:blur(3px)!important;-webkit-backdrop-filter:blur(3px)!important}' +
+          '.menu-cleaner-popup-body::-webkit-scrollbar-thumb:hover{background:#50d4a0!important;box-shadow:0 0 8px rgba(80,212,160,0.3)!important}' +
+          '.menu-cleaner-category-header:hover{border-left-color:#50d4a0!important}'
+        )
+      }
+    };
+  })();  // Return the theme key if valid, else 'default'
+  function validTheme(t) {
+    return THEMES[t] ? t : 'default';
+  }
+
+  function applyTheme(themeName) {
+    var existing = doc.getElementById('mc-theme');
+    if (existing) existing.remove();
+    var t = validTheme(themeName || settings.theme);
+    if (t === 'default' || !THEMES[t]) {
+      settings.theme = 'default';
+      return;
+    }
+    var style = doc.createElement('style');
+    style.id = 'mc-theme';
+    style.textContent = THEMES[t].css;
+    (doc.head || doc.body).appendChild(style);
+    settings.theme = t;
+  }
+
+  function getThemeBtnLabel() {
+    var t = validTheme(settings.theme);
+    if (t === 'default') return '🎨 主题';
+    return '🎨 ' + (THEMES[t] ? THEMES[t].label : '主题');
+  }
+
+  function cycleTheme() {
+    var keys = ['default'].concat(Object.keys(THEMES));
+    var cur = validTheme(settings.theme);
+    var idx = keys.indexOf(cur);
+    var next = keys[(idx + 1) % keys.length];
+    settings.theme = next;
+    saveSettings();
+    applyTheme(next);
+    var btn = doc.getElementById('menu-cleaner-theme-btn');
+    if (btn) btn.textContent = getThemeBtnLabel();
+  }
 
   // ── Cached DOM helpers ──
   function getExtPanel() { return doc.getElementById("menu-cleaner-ext-panel"); }
@@ -1284,6 +1414,7 @@ const MENU_REGISTRY = [
   -webkit-backdrop-filter: blur(2px);
   z-index: 99999;
   animation: menu-cleaner-fadein 0.2s ease;
+  transition: background 0.3s;
 }
 
 /* ── Force horizontal text ───────────────────────── */
@@ -1318,10 +1449,34 @@ const MENU_REGISTRY = [
   width: 560px;
   max-width: 90%;
   max-height: 90vh;
-  background: var(--SmartThemeBlurTintColor, #1a1b22);
-  border: 1px solid var(--SmartThemeBorderColor, #333);
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
+  /* -- Theme CSS variables (overridable by mc-theme <style>) -- */
+  --mc-bg: var(--SmartThemeBlurTintColor, #1a1b22);
+  --mc-bg-header: transparent;
+  --mc-bg-body: transparent;
+  --mc-bg-input: transparent;
+  --mc-border-color: var(--SmartThemeBorderColor, #333);
+  --mc-border-subtle: rgba(255, 255, 255, 0.06);
+  --mc-border-accent: transparent;
+  --mc-text: inherit;
+  --mc-text-muted: var(--SmartThemeBodyColor, #888);
+  --mc-accent: #7c5cff;
+  --mc-accent-rgb: 124, 92, 255;
+  --mc-hover-bg: rgba(255, 255, 255, 0.04);
+  --mc-hover-bg-strong: rgba(255, 255, 255, 0.06);
+  --mc-active-bg: rgba(255, 255, 255, 0.1);
+  --mc-slider-off: #555;
+  --mc-slider-on: #7c5cff;
+  --mc-slider-dot: #fff;
+  --mc-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --mc-glow: none;
+  --mc-font-weight: 400;
+
+  background: var(--mc-bg);
+  border: 1px solid var(--mc-border-color);
+  border-top: 2px solid var(--mc-border-accent, var(--mc-border-color));
   border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--mc-shadow), var(--mc-glow);
   z-index: 100000;
   flex-direction: column;
   overflow: hidden;
@@ -1332,11 +1487,13 @@ const MENU_REGISTRY = [
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--SmartThemeBorderColor, #333);
+  border-bottom: 1px solid var(--mc-border-color);
   flex-shrink: 0;
+  background: var(--mc-bg-header);
+  font-weight: var(--mc-font-weight);
 }
 
-.menu-cleaner-popup-header h2 { margin: 0; font-size: 18px; }
+.menu-cleaner-popup-header h2 { margin: 0; font-size: 18px; color: var(--mc-text); }
 
 .menu-cleaner-popup-actions { display: flex; gap: 8px; }
 
@@ -1346,9 +1503,14 @@ const MENU_REGISTRY = [
   flex: 1;
 }
 
+.menu-cleaner-popup-body::-webkit-scrollbar { width: 6px; }
+.menu-cleaner-popup-body::-webkit-scrollbar-track { background: transparent; }
+.menu-cleaner-popup-body::-webkit-scrollbar-thumb { background: var(--mc-border-subtle); border-radius: 3px; }
+.menu-cleaner-popup-body::-webkit-scrollbar-thumb:hover { background: var(--mc-accent); }
+
 /* ── Category Sections ───────────────────────────── */
 .menu-cleaner-category {
-  border-bottom: 1px solid var(--SmartThemeBorderColor, #2a2b33);
+  border-bottom: 1px solid var(--mc-border-color);
 }
 
 .menu-cleaner-category-header {
@@ -1359,15 +1521,20 @@ const MENU_REGISTRY = [
   cursor: pointer;
   user-select: none;
   transition: background 0.15s;
+  border-left: 3px solid transparent;
+  color: var(--mc-text);
 }
 
-.menu-cleaner-category-header:hover { background: rgba(255, 255, 255, 0.04); }
+.menu-cleaner-category-header:hover { border-left-color: var(--mc-accent); background: var(--mc-hover-bg); }
+.menu-cleaner-category-header:hover .menu-cleaner-category-arrow { color: var(--mc-accent); }
+
+
 
 .menu-cleaner-category-arrow { font-size: 10px; width: 14px; transition: transform 0.15s; }
 
 .menu-cleaner-category-count {
   font-size: 0.8em;
-  color: var(--SmartThemeBodyColor, #888);
+  color: var(--mc-text-muted);
   margin-left: auto;
 }
 
@@ -1383,7 +1550,7 @@ const MENU_REGISTRY = [
   gap: 12px;
 }
 
-.menu-cleaner-item:hover { background: rgba(255, 255, 255, 0.03); }
+.menu-cleaner-item:hover { background: var(--mc-hover-bg); }
 
 .menu-cleaner-item > span:first-child {
   flex: 1;
@@ -1391,13 +1558,14 @@ const MENU_REGISTRY = [
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--mc-text);
 }
 
 .menu-cleaner-separator {
   opacity: 0.45;
   font-size: 0.78em;
   padding: 6px 18px 2px 36px;
-  color: var(--SmartThemeBodyColor, #888);
+  color: var(--mc-text-muted);
 }
 
 .menu-cleaner-item-discovered > span:first-child::before {
@@ -1421,7 +1589,7 @@ const MENU_REGISTRY = [
   position: absolute;
   cursor: pointer;
   inset: 0;
-  background: #555;
+  background: var(--mc-slider-off);
   border-radius: 22px;
   transition: background 0.25s;
 }
@@ -1431,19 +1599,19 @@ const MENU_REGISTRY = [
   position: absolute;
   height: 16px; width: 16px;
   left: 3px; bottom: 3px;
-  background: #fff;
+  background: var(--mc-slider-dot);
   border-radius: 50%;
   transition: transform 0.25s;
 }
 
-.menu-cleaner-toggle input:checked + .menu-cleaner-slider { background: #7c5cff; }
+.menu-cleaner-toggle input:checked + .menu-cleaner-slider { background: var(--mc-slider-on); box-shadow: 0 0 8px rgba(var(--mc-accent-rgb), 0.3); }
 
 .menu-cleaner-toggle input:checked + .menu-cleaner-slider::before { transform: translateX(18px); }
 
 /* ── Tab Navigation ──────────────────────────────── */
 .menu-cleaner-tabs {
   display: flex;
-  border-bottom: 1px solid var(--SmartThemeBorderColor, #333);
+  border-bottom: 1px solid var(--mc-border-color);
   flex-shrink: 0;
 }
 
@@ -1453,14 +1621,14 @@ const MENU_REGISTRY = [
   padding: 10px 0;
   cursor: pointer;
   font-size: 0.92em;
-  color: var(--SmartThemeBodyColor, #888);
+  color: var(--mc-text-muted);
   border-bottom: 2px solid transparent;
   transition: color 0.2s, border-color 0.2s, background 0.15s;
   user-select: none;
 }
 
-.menu-cleaner-tab:hover { color: #ccc; background: rgba(255, 255, 255, 0.03); }
-.menu-cleaner-tab.active { color: #fff; border-bottom-color: #7c5cff; }
+.menu-cleaner-tab:hover { color: var(--mc-accent); background: var(--mc-hover-bg); }
+.menu-cleaner-tab.active { color: var(--mc-accent); border-bottom-color: var(--mc-accent); border-bottom-width: 3px; font-weight: 700; background: rgba(var(--mc-accent-rgb), 0.08); }
 
 /* ── Reorder Items ───────────────────────────────── */
 .menu-cleaner-reorder-item {
@@ -1476,7 +1644,7 @@ const MENU_REGISTRY = [
   border-left: 3px solid transparent;
 }
 
-.menu-cleaner-reorder-item:hover { background: rgba(255, 255, 255, 0.03); }
+.menu-cleaner-reorder-item:hover { background: var(--mc-hover-bg); }
 
 .menu-cleaner-reorder-item > span:not(.menu-cleaner-drag-handle) {
   flex: 1;
@@ -1484,19 +1652,20 @@ const MENU_REGISTRY = [
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--mc-text);
 }
 
 .menu-cleaner-reorder-empty {
   padding: 12px 18px 12px 36px;
   font-size: 0.85em;
-  color: var(--SmartThemeBodyColor, #888);
+  color: var(--mc-text-muted);
   opacity: 0.6;
 }
 
 /* ── Drag Handle ─────────────────────────────────── */
 .menu-cleaner-drag-handle {
   cursor: grab;
-  color: var(--SmartThemeBodyColor,#666);
+  color: var(--mc-text-muted);
   font-size: 1.1em;
   letter-spacing: -2px;
   user-select: none;
@@ -1504,21 +1673,24 @@ const MENU_REGISTRY = [
   transition: color 0.15s;
 }
 
-.menu-cleaner-drag-handle:hover { color: var(--SmartThemeQuoteColor,#aaa); }
+.menu-cleaner-drag-handle:hover { color: var(--mc-accent); }
 .menu-cleaner-drag-handle:active { cursor: grabbing; }
 
 /* ── Drag States ─────────────────────────────────── */
-.menu-cleaner-reorder-item.dragging { opacity: 0.4; background: rgba(124, 92, 255, 0.1); }
+.menu-cleaner-reorder-item.dragging { opacity: 0.5; background: rgba(var(--mc-accent-rgb), 0.12); box-shadow: inset 0 0 16px rgba(var(--mc-accent-rgb), 0.06); }
 .menu-cleaner-reorder-item.drag-over {
-  border-left-color: #7c5cff;
-  background: rgba(124, 92, 255, 0.08);
+  border-left-color: var(--mc-accent);
+  border-left-width: 4px;
+  background: rgba(var(--mc-accent-rgb), 0.08);
+  box-shadow: inset 0 0 12px rgba(var(--mc-accent-rgb), 0.04);
 }
 
 .menu-cleaner-reorder-column-section.drag-over-section {
-  outline: 2px dashed #7c5cff;
-  outline-offset: -2px;
-  border-radius: 4px;
-  background: rgba(124, 92, 255, 0.05);
+  outline: 2px solid var(--mc-accent);
+  outline-offset: -1px;
+  border-radius: 6px;
+  background: rgba(var(--mc-accent-rgb), 0.05);
+  box-shadow: inset 0 0 16px rgba(var(--mc-accent-rgb), 0.04);
 }
 
 /* ── Settings Panel ──────────────────────────────── */
@@ -1530,10 +1702,10 @@ button.menu-cleaner-settings-btn-full {
   width: 100%;
   padding: 10px 8px;
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--mc-border-subtle);
   border-radius: 0;
   background: transparent;
-  color: inherit;
+  color: var(--mc-text);
   font-size: 0.92em;
   cursor: pointer;
   text-align: left;
@@ -1541,26 +1713,28 @@ button.menu-cleaner-settings-btn-full {
 }
 
 button.menu-cleaner-settings-btn-full:last-child { border-bottom: none; }
-button.menu-cleaner-settings-btn-full:hover { background: rgba(255, 255, 255, 0.06); }
-button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0.1); }
+button.menu-cleaner-settings-btn-full:hover { background: var(--mc-hover-bg-strong); }
+button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); }
 
 .menu-cleaner-colmode-option {
   cursor: pointer;
   border-radius: 4px;
   padding: 10px 12px !important;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--mc-hover-bg);
   border: 1px solid transparent;
+  color: var(--mc-text);
   transition: background 0.15s, border-color 0.15s;
 }
-.menu-cleaner-colmode-option:hover { background: rgba(255, 255, 255, 0.06); }
+.menu-cleaner-colmode-option:hover { background: var(--mc-hover-bg-strong); }
 .menu-cleaner-colmode-active {
-  background: rgba(100, 150, 255, 0.15) !important;
-  border-color: rgba(100, 150, 255, 0.4) !important;
+  background: rgba(var(--mc-accent-rgb), 0.15) !important;
+  border-color: rgba(var(--mc-accent-rgb), 0.4) !important;
+  color: var(--mc-accent) !important;
 }
 
 .menu-cleaner-settings-divider {
   text-align: center;
-  color: var(--SmartThemeBodyColor, #888);
+  color: var(--mc-text-muted);
   font-size: 0.8em;
   padding: 14px 0 10px 0;
   opacity: 0.7;
@@ -1579,7 +1753,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
 .menu-cleaner-reorder-column-label {
   font-size: 0.82em;
-  color: var(--SmartThemeBodyColor, #888);
+  color: var(--mc-text-muted);
   padding: 8px 18px 4px 36px;
   opacity: 0.75;
 }
@@ -2628,6 +2802,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         '<div class="menu-cleaner-popup-header">' +
           '<h2>酒馆菜单管理器</h2>' +
           '<div class="menu-cleaner-popup-actions">' +
+            '<button id="menu-cleaner-theme-btn" class="menu_button">' + getThemeBtnLabel() + '</button>' +
             '<button id="menu-cleaner-rescan-btn" class="menu_button">手动重扫</button>' +
             '<button id="menu-cleaner-close" class="menu_button">✕ 关闭</button>' +
           '</div>' +
@@ -2644,6 +2819,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     var backdrop = doc.getElementById('menu-cleaner-backdrop');
     closeBtn && closeBtn.addEventListener('click', closePopup);
     backdrop && backdrop.addEventListener('click', closePopup);
+    var themeBtn = doc.getElementById('menu-cleaner-theme-btn');
+    themeBtn && themeBtn.addEventListener('click', function() { cycleTheme(); });
     var rescanBtn = doc.getElementById('menu-cleaner-rescan-btn');
     rescanBtn && rescanBtn.addEventListener('click', function() { doRescan(); });
 
@@ -2779,6 +2956,8 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     html += '<div class="menu-cleaner-settings-divider">—————— 工具区 ——————</div>';
     html += '<button id="menu-cleaner-reset-order" class="menu_button menu-cleaner-settings-btn-full">恢复原始排序</button>';
     html += '<button id="menu-cleaner-clear-data" class="menu_button menu-cleaner-settings-btn-full">清除插件数据</button>';
+    html += '<button id="menu-cleaner-export-settings" class="menu_button menu-cleaner-settings-btn-full" style="margin-top:4px;">📤 导出设置</button>';
+    html += '<button id="menu-cleaner-import-settings" class="menu_button menu-cleaner-settings-btn-full">📥 导入设置</button>';
     html += '<div class="menu-cleaner-settings-divider">—————— 调试用内容 ——————</div>';
     html += '<div class="menu-cleaner-settings-row"><span>重扫描消息toast</span><label class="menu-cleaner-toggle"><input type="checkbox" id="menu-cleaner-rescan-toast"' + (settings.rescanToast ? ' checked' : '') + '><span class="menu-cleaner-slider"></span></label></div>';
     html += '<button id="menu-cleaner-export-diagnostics" class="menu_button menu-cleaner-settings-btn-full" style="margin-top:4px;">导出诊断日志</button>';
@@ -2827,6 +3006,81 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     colDual && colDual.addEventListener('click', function() { applyColumnMode('dual'); });
     var colSingle = doc.getElementById('menu-cleaner-colmode-single');
     colSingle && colSingle.addEventListener('click', function() { applyColumnMode('single'); });
+
+    var exportSettingsBtn = doc.getElementById('menu-cleaner-export-settings');
+    exportSettingsBtn && exportSettingsBtn.addEventListener('click', function() {
+      var payload = {
+        version: SCRIPT_VERSION,
+        exportedAt: new Date().toISOString(),
+        settings: {
+          enabled: settings.enabled,
+          hiddenSelectors: settings.hiddenSelectors,
+          reorder: settings.reorder,
+          discoveryCache: settings.discoveryCache,
+          columnMode: settings.columnMode,
+          rescanToast: settings.rescanToast,
+          theme: validTheme(settings.theme)
+        }
+      };
+      try {
+        var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = doc.createElement('a');
+        a.href = url;
+        a.download = 'menu-cleaner-settings.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        if (win.toastr) win.toastr.success('设置已导出');
+      } catch(e) {
+        if (win.toastr) win.toastr.error('导出失败: ' + e.message);
+      }
+    });
+
+    var importSettingsBtn = doc.getElementById('menu-cleaner-import-settings');
+    importSettingsBtn && importSettingsBtn.addEventListener('click', function() {
+      if (!importFileInput) {
+        importFileInput = doc.createElement('input');
+        importFileInput.type = 'file';
+        importFileInput.accept = '.json';
+        importFileInput.style.display = 'none';
+        importFileInput.addEventListener('change', function(ev) {
+          var file = ev.target.files && ev.target.files[0];
+          if (!file) return;
+          var reader = new FileReader();
+          reader.onload = function(e2) {
+            try {
+              var data = JSON.parse(e2.target.result);
+              if (!data.settings || typeof data.settings !== 'object') throw new Error('无效的导入文件格式');
+              var validKeys = { enabled: 'boolean', hiddenSelectors: 'object', reorder: 'object', discoveryCache: 'object', columnMode: 'string', rescanToast: 'boolean', theme: 'string' };
+              var validKeyNames = Object.keys(validKeys);
+              for (var _ik = 0; _ik < validKeyNames.length; _ik++) {
+                var _kn = validKeyNames[_ik];
+                if (data.settings[_kn] !== undefined && typeof data.settings[_kn] === validKeys[_kn]) {
+                  settings[_kn] = JSON.parse(JSON.stringify(data.settings[_kn]));
+                }
+              }
+              settings.initialSnapshot = null; // will be rebuilt on next reset
+              saveSettings();
+              settings.theme = validTheme(settings.theme);
+              applyTheme(settings.theme);
+              var _tb = doc.getElementById('menu-cleaner-theme-btn');
+              if (_tb) _tb.textContent = getThemeBtnLabel();
+              refreshDiscoveryCache();
+              applyHides();
+              applyNativeReorder('extensionsSettings');
+              refreshPopup();
+              if (win.toastr) win.toastr.success('设置已导入');
+            } catch(err) {
+              if (win.toastr) win.toastr.error('导入失败: ' + err.message);
+            }
+          };
+          reader.readAsText(file);
+          importFileInput.value = '';
+        });
+        doc.body.appendChild(importFileInput);
+      }
+      importFileInput.click();
+    });
 
     var exportBtn = doc.getElementById('menu-cleaner-export-diagnostics');
     exportBtn && exportBtn.addEventListener('click', function() {
@@ -3075,16 +3329,34 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
           dropTargetColumn = targetItem.dataset.column;
           doReorder(draggedIndex, parseInt(targetItem.dataset.index), draggedGroup);
         } else {
-          // Check for cross-column drop into an empty section
-          var targetSection = target ? target.closest('.menu-cleaner-reorder-column-section') : null;
-          if (targetSection && draggedItem) {
-            var targetCol = -1;
-            var label = targetSection.querySelector('.menu-cleaner-reorder-column-label');
-            if (label) {
-              if (label.textContent.indexOf('右栏') !== -1) targetCol = 1;
-              else if (label.textContent.indexOf('左栏') !== -1) targetCol = 0;
-            }
-            if (targetCol >= 0 && draggedItem.dataset.column !== String(targetCol)) {
+          // Same-column fallback: elementFromPoint often returns draggedItem itself on narrow layouts.
+          // Find the nearest item in the same column by Y position.
+          var _col = draggedItem ? draggedItem.dataset.column : null;
+          var _allItems = doc.querySelectorAll('.menu-cleaner-reorder-item');
+          var _nearest = null, _nearestDist = Infinity;
+          for (var _ti = 0; _ti < _allItems.length; _ti++) {
+            if (_allItems[_ti] === draggedItem) continue;
+            if (_allItems[_ti].dataset.group !== draggedGroup) continue;
+            if (_col !== null && _allItems[_ti].dataset.column !== _col) continue;
+            var _rc = _allItems[_ti].getBoundingClientRect();
+            var _cy = _rc.top + _rc.height / 2;
+            var _dist = Math.abs(e.clientY - _cy);
+            if (_dist < _nearestDist) { _nearestDist = _dist; _nearest = _allItems[_ti]; }
+          }
+          if (_nearest && _nearest !== draggedItem) {
+            dropTargetColumn = _nearest.dataset.column;
+            doReorder(draggedIndex, parseInt(_nearest.dataset.index), draggedGroup);
+          } else {
+            // Check for cross-column drop into an empty section
+            var targetSection = target ? target.closest('.menu-cleaner-reorder-column-section') : null;
+            if (targetSection && draggedItem) {
+              var targetCol = -1;
+              var label = targetSection.querySelector('.menu-cleaner-reorder-column-label');
+              if (label) {
+                if (label.textContent.indexOf('右栏') !== -1) targetCol = 1;
+                else if (label.textContent.indexOf('左栏') !== -1) targetCol = 0;
+              }
+              if (targetCol >= 0 && draggedItem.dataset.column !== String(targetCol)) {
               var sel = draggedItem.dataset.selector;
               var gid = draggedGroup;
               setColumnInCache(sel, gid, targetCol);
@@ -3108,6 +3380,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
             }
           }
         }
+      }
 
         cleanupDrag();
       });
@@ -3604,6 +3877,7 @@ function renderHideView() {
   function init() {
     try { console.debug('[MC] init start'); } catch(_) {}
     loadSettings();
+    applyTheme(settings.theme);
     injectStyle();
     try { console.debug('[MC] init step1 captureInitialSnapshot'); } catch(_) {}
 
