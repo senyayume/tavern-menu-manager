@@ -3060,8 +3060,8 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
                 }
               }
               settings.initialSnapshot = null; // will be rebuilt on next reset
-              saveSettings();
               settings.theme = validTheme(settings.theme);
+              saveSettings();
               applyTheme(settings.theme);
               var _tb = doc.getElementById('menu-cleaner-theme-btn');
               if (_tb) _tb.textContent = getThemeBtnLabel();
