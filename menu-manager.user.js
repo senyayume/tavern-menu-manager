@@ -3329,6 +3329,14 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
           dropTargetColumn = targetItem.dataset.column;
           doReorder(draggedIndex, parseInt(targetItem.dataset.index), draggedGroup);
         } else {
+          // Skip Y-distance fallback if drop is on a different column section
+          var _skipFallback = false;
+          if (draggedItem) {
+            var _dropSec = target ? target.closest('.menu-cleaner-reorder-column-section') : null;
+            if (_dropSec && _dropSec.dataset.column !== undefined && _dropSec.dataset.column !== draggedItem.dataset.column) {
+              _skipFallback = true;
+            }
+          }
           // Same-column fallback: elementFromPoint often returns draggedItem itself on narrow layouts.
           // Find the nearest item in the same column by Y position.
           var _col = draggedItem ? draggedItem.dataset.column : null;
@@ -3343,7 +3351,7 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
             var _dist = Math.abs(e.clientY - _cy);
             if (_dist < _nearestDist) { _nearestDist = _dist; _nearest = _allItems[_ti]; }
           }
-          if (_nearest && _nearest !== draggedItem) {
+          if (!_skipFallback && _nearest && _nearest !== draggedItem) {
             dropTargetColumn = _nearest.dataset.column;
             doReorder(draggedIndex, parseInt(_nearest.dataset.index), draggedGroup);
           } else {
