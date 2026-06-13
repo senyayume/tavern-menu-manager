@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.5.0==
+// ==酒馆菜单管理器 v1.5.1==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -1153,7 +1153,7 @@ const MENU_REGISTRY = [
   ];
 
   // ── Settings persistence via localStorage ─────────────────────
-  const SCRIPT_VERSION = '1.5.0'; // keep in sync with header
+  const SCRIPT_VERSION = '1.5.1'; // keep in sync with header
 
 const defaultSettings = {
     enabled: true,

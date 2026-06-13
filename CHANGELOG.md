@@ -1,3 +1,19 @@
+## [1.5.1] - 2026-06-13
+
+### Fixed
+
+- **跨栏拖拽被 Y 距离降级劫持**：pointerup 的 Y 距离最近元素匹配只搜同列，跨栏拖到另一列空白区时总能找到同列元素，跨列 section 降落逻辑永远跑不到。新增 `_skipFallback` 检测：落点在异列 section 时跳过 Y 距离匹配。
+- **导入设置后失效主题值被持久化**：`saveSettings()` 在 `settings.theme = validTheme(...)` 之前调用，无效主题字符串已写入 localStorage。调换顺序。
+
+---
+## [1.5.1] - 2026-06-13
+
+### Fixed
+
+- **跨栏拖拽被 Y 距离降级劫持**：pointerup 的 Y 距离最近元素匹配只搜同列，跨栏拖到另一列空白区时总能找到同列元素，跨列 section 降落逻辑永远跑不到。新增 `_skipFallback` 检测：落点在异列 section 时跳过 Y 距离匹配。
+- **导入设置后失效主题值被持久化**：`saveSettings()` 在 `settings.theme = validTheme(...)` 之前调用，无效主题字符串已写入 localStorage。调换顺序。
+
+---
 ## [1.5.0] - 2026-06-13
 
 ### Added
