@@ -61,6 +61,7 @@ var Runtime = {
   // ── MenuCleaner popup control (registered by MC at init, called by MP) ──
   openMenuCleanerPopup: null,
   isMenuCleanerPopupOpen: null,
+  syncMagicPanelTheme: null,
   // ── MagicPanel DOM identifiers MenuCleaner must not hide ──
   MP_VISIBLE_SELECTORS: [
     '#hide-helper-wand-button',
@@ -235,11 +236,11 @@ const MENU_REGISTRY = [
       display:flex; align-items:center; gap:4px; flex-shrink:0;
     }
     .magic-panel-edit-btn {
-      cursor:pointer; color:var(--mc-text-muted,var(--SmartThemeBodyColor,#e0e0e0)); font-size:calc(14px * var(--content-scale,1));
+      cursor:pointer; color:var(--mc-accent,var(--SmartThemeQuoteColor,#5bc0de)); font-size:calc(14px * var(--content-scale,1));
     }
     .magic-panel-edit-btn.editing { color:#f39c12; }
     .magic-panel-settings-btn {
-      cursor:pointer; color:var(--mc-text-muted,var(--SmartThemeBodyColor,#e0e0e0)); font-size:calc(14px * var(--content-scale,1));
+      cursor:pointer; color:var(--mc-accent,var(--SmartThemeQuoteColor,#5bc0de)); font-size:calc(14px * var(--content-scale,1));
     }
 
     .magic-panel-body {
@@ -341,13 +342,13 @@ const MENU_REGISTRY = [
       font-size:13px; cursor:pointer;
     }
     .magic-panel-fit-btn, .magic-panel-scale-btn {
-      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:calc(14px * var(--content-scale,1));
+      cursor:pointer; color:var(--mc-accent,var(--SmartThemeQuoteColor,#5bc0de)); font-size:calc(14px * var(--content-scale,1));
     }
-    .magic-panel-fit-btn:hover, .magic-panel-scale-btn:hover { color:var(--SmartThemeQuoteColor,#5bc0de); }
+    .magic-panel-fit-btn:hover, .magic-panel-scale-btn:hover { color:var(--mc-accent,var(--SmartThemeQuoteColor,#5bc0de)); }
     .magic-panel-sort-btn {
-      cursor:pointer; color:var(--SmartThemeBodyColor,#e0e0e0); font-size:calc(14px * var(--content-scale,1));
+      cursor:pointer; color:var(--mc-accent,var(--SmartThemeQuoteColor,#5bc0de)); font-size:calc(14px * var(--content-scale,1));
     }
-    .magic-panel-sort-btn.active { color:var(--SmartThemeQuoteColor,#5bc0de); }
+    .magic-panel-sort-btn.active { color:var(--mc-accent,var(--SmartThemeQuoteColor,#5bc0de)); }
     .magic-panel-btn .drag-handle { display:none; cursor:grab; color:var(--SmartThemeBodyColor,#ccc); position:absolute; left:4px; top:50%; transform:translateY(-50%); font-size:13px; user-select:none; }
     .magic-panel.is-sorting .magic-panel-grid, .magic-panel.is-sorting .magic-panel-more-grid.expanded { gap:4px; }
     .magic-panel.is-sorting .magic-panel-btn .drag-handle { display:inline-block; }
@@ -467,6 +468,7 @@ const MENU_REGISTRY = [
       this.saveBar = this.panel.querySelector('.magic-panel-save-bar');
       this.saveBtn = this.panel.querySelector('.magic-panel-save-btn');
       this.content = this.panel.querySelector('[data-content="tavern"]');
+      if (Runtime.syncMagicPanelTheme) Runtime.syncMagicPanelTheme();
     }
 
     bindEvents() {
@@ -682,6 +684,7 @@ const MENU_REGISTRY = [
       this.saveBar.classList.remove('active');
       this.render();
       this.wrapper.classList.add('active');
+      if (Runtime.syncMagicPanelTheme) Runtime.syncMagicPanelTheme();
       requestAnimationFrame(() => this.position());
     }
 
@@ -1262,12 +1265,19 @@ const defaultSettings = {
     return THEMES[t] ? t : 'default';
   }
 
-  function applyTheme(themeName) {
+function applyTheme(themeName) {
     var existing = doc.getElementById('mc-theme');
     if (existing) existing.remove();
     var t = validTheme(themeName || settings.theme);
     if (t === 'default' || !THEMES[t]) {
       settings.theme = 'default';
+      var rootDoc = Runtime.getRootDocument();
+      if (rootDoc) {
+        var mirror = rootDoc.getElementById('magic-panel-theme-mirror');
+        if (mirror) mirror.remove();
+        resetMagicPanelInlineTheme(rootDoc);
+      }
+      if (Runtime.syncMagicPanelTheme) Runtime.syncMagicPanelTheme();
       return;
     }
     var style = doc.createElement('style');
@@ -1275,6 +1285,7 @@ const defaultSettings = {
     style.textContent = THEMES[t].css;
     (doc.head || doc.body).appendChild(style);
     settings.theme = t;
+    if (Runtime.syncMagicPanelTheme) Runtime.syncMagicPanelTheme();
   }
 
   function getThemeBtnLabel() {
@@ -1300,6 +1311,154 @@ const defaultSettings = {
   function getPopup() { return doc.getElementById("menu-cleaner-popup"); }
   function getPopupBody() { return doc.getElementById("menu-cleaner-popup-body"); }
   function getRmBlock() { return doc.getElementById("rm_extensions_block"); }
+
+  function syncMagicPanelThemeStyleMirror(rootDoc) {
+    if (!rootDoc || !rootDoc.head) return;
+    var mirrorId = 'magic-panel-theme-mirror';
+    var mirror = rootDoc.getElementById(mirrorId);
+    var themeStyle = doc.getElementById('mc-theme');
+
+    if (!themeStyle || !themeStyle.textContent) {
+      if (mirror) mirror.remove();
+      return;
+    }
+
+    if (!mirror) {
+      mirror = rootDoc.createElement('style');
+      mirror.id = mirrorId;
+      rootDoc.head.appendChild(mirror);
+    }
+
+    if (mirror.textContent !== themeStyle.textContent) {
+      mirror.textContent = themeStyle.textContent;
+    }
+  }
+
+  function resetMagicPanelInlineTheme(rootDoc) {
+    if (!rootDoc) return;
+    var mp = rootDoc.querySelector('.magic-panel');
+    if (mp) {
+      var keep = {
+        contentScale: mp.style.getPropertyValue('--content-scale'),
+        panelCols: mp.style.getPropertyValue('--panel-cols'),
+        panelWidth: mp.style.getPropertyValue('--panel-width'),
+        left: mp.style.left,
+        top: mp.style.top,
+        width: mp.style.width,
+        height: mp.style.height
+      };
+      mp.removeAttribute('style');
+      if (keep.contentScale) mp.style.setProperty('--content-scale', keep.contentScale);
+      if (keep.panelCols) mp.style.setProperty('--panel-cols', keep.panelCols);
+      if (keep.panelWidth) mp.style.setProperty('--panel-width', keep.panelWidth);
+      if (keep.left) mp.style.left = keep.left;
+      if (keep.top) mp.style.top = keep.top;
+      if (keep.width) mp.style.width = keep.width;
+      if (keep.height) mp.style.height = keep.height;
+    }
+    var nodes = rootDoc.querySelectorAll('.magic-panel-header, .magic-panel-body, .magic-panel-save-btn');
+    for (var i = 0; i < nodes.length; i++) nodes[i].removeAttribute('style');
+  }
+
+  function syncMagicPanelThemeBridge() {
+    var rootDoc = Runtime.getRootDocument();
+    if (!rootDoc) return;
+    syncMagicPanelThemeStyleMirror(rootDoc);
+    var mp = rootDoc.querySelector('.magic-panel');
+    if (!mp) return;
+    resetMagicPanelInlineTheme(rootDoc);
+
+    var popup = doc.getElementById('menu-cleaner-popup');
+    var header = popup ? popup.querySelector('.menu-cleaner-popup-header') : null;
+    var body = popup ? popup.querySelector('.menu-cleaner-popup-body') : null;
+    var probe = null;
+
+    if (!popup) {
+      probe = doc.createElement('div');
+      probe.style.cssText = 'position:fixed;left:-99999px;top:-99999px;pointer-events:none;visibility:hidden;';
+      probe.innerHTML =
+        '<div class="menu-cleaner-popup" style="display:flex!important;">' +
+          '<div class="menu-cleaner-popup-header"></div>' +
+          '<div class="menu-cleaner-popup-body"></div>' +
+        '</div>';
+      (doc.body || doc.documentElement).appendChild(probe);
+      popup = probe.firstElementChild;
+      header = popup ? popup.querySelector('.menu-cleaner-popup-header') : null;
+      body = popup ? popup.querySelector('.menu-cleaner-popup-body') : null;
+    }
+
+    try {
+      var srcWin = doc.defaultView || window;
+      var popupCS = popup ? srcWin.getComputedStyle(popup) : null;
+      var headerCS = header ? srcWin.getComputedStyle(header) : null;
+      var bodyCS = body ? srcWin.getComputedStyle(body) : null;
+
+      if (popupCS) {
+        var vars = [
+          '--mc-bg', '--mc-bg-header', '--mc-bg-body', '--mc-bg-input',
+          '--mc-border-color', '--mc-border-subtle', '--mc-border-accent',
+          '--mc-text', '--mc-text-muted', '--mc-accent', '--mc-accent-rgb',
+          '--mc-hover-bg', '--mc-hover-bg-strong', '--mc-shadow'
+        ];
+        for (var i = 0; i < vars.length; i++) {
+          var val = popupCS.getPropertyValue(vars[i]);
+          if (val) mp.style.setProperty(vars[i], val.trim());
+        }
+        mp.style.color = popupCS.color;
+        mp.style.background = popupCS.background;
+        mp.style.backgroundColor = popupCS.backgroundColor;
+        mp.style.backgroundImage = popupCS.backgroundImage && popupCS.backgroundImage !== 'none' ? popupCS.backgroundImage : '';
+        mp.style.borderColor = popupCS.borderColor;
+        mp.style.borderWidth = popupCS.borderWidth;
+        mp.style.borderStyle = popupCS.borderStyle;
+        mp.style.borderRadius = popupCS.borderRadius;
+        mp.style.boxShadow = popupCS.boxShadow;
+        mp.style.backdropFilter = popupCS.backdropFilter;
+        mp.style.webkitBackdropFilter = popupCS.backdropFilter;
+      }
+
+      var mpHeader = rootDoc.querySelector('.magic-panel-header');
+      if (mpHeader && headerCS) {
+        mpHeader.style.background = headerCS.background;
+        mpHeader.style.backgroundColor = headerCS.backgroundColor;
+        mpHeader.style.backgroundImage = headerCS.backgroundImage && headerCS.backgroundImage !== 'none' ? headerCS.backgroundImage : '';
+        mpHeader.style.borderBottom = headerCS.borderBottom;
+        mpHeader.style.color = headerCS.color;
+      }
+
+      var mpBody = rootDoc.querySelector('.magic-panel-body');
+      if (mpBody && bodyCS) {
+        mpBody.style.background = bodyCS.background;
+        mpBody.style.backgroundColor = bodyCS.backgroundColor;
+        mpBody.style.backgroundImage = bodyCS.backgroundImage && bodyCS.backgroundImage !== 'none' ? bodyCS.backgroundImage : '';
+        mpBody.style.color = bodyCS.color;
+      }
+
+      var refBtn = doc.querySelector('#menu-cleaner-theme-btn, #menu-cleaner-open-popup, .menu-cleaner-popup-actions .menu_button, .menu_button');
+      if (refBtn) {
+        var btnCS = srcWin.getComputedStyle(refBtn);
+        var iconButtons = rootDoc.querySelectorAll('.magic-panel-edit-btn, .magic-panel-sort-btn, .magic-panel-scale-btn, .magic-panel-fit-btn, .magic-panel-settings-btn');
+        for (var ai = 0; ai < iconButtons.length; ai++) {
+          iconButtons[ai].style.color = (popupCS && (popupCS.getPropertyValue('--mc-accent') || popupCS.getPropertyValue('--mc-text')) ? (popupCS.getPropertyValue('--mc-accent') || popupCS.getPropertyValue('--mc-text')).trim() : btnCS.color);
+        }
+        var actionNodes = rootDoc.querySelectorAll('.magic-panel-save-btn');
+        for (var bi = 0; bi < actionNodes.length; bi++) {
+          var node = actionNodes[bi];
+          node.style.color = btnCS.color;
+          node.style.background = btnCS.background;
+          node.style.backgroundColor = btnCS.backgroundColor;
+          node.style.backgroundImage = btnCS.backgroundImage && btnCS.backgroundImage !== 'none' ? btnCS.backgroundImage : '';
+          node.style.borderRadius = btnCS.borderRadius;
+          node.style.boxShadow = btnCS.boxShadow;
+          node.style.borderColor = btnCS.borderColor;
+          node.style.borderWidth = btnCS.borderWidth;
+          node.style.borderStyle = btnCS.borderStyle;
+        }
+      }
+    } finally {
+      if (probe && probe.parentNode) probe.parentNode.removeChild(probe);
+    }
+  }
 
 
   function loadSettings() {
@@ -1746,6 +1905,9 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
   justify-content: space-between;
   padding: 8px 0;
   font-size: 0.92em;
+}
+.menu-cleaner-settings-row > span {
+  color: var(--mc-accent);
 }
 
 /* ── Dual-Column Reorder ─────────────────────────── */
@@ -2828,6 +2990,7 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
     for (var t = 0; t < tabs.length; t++) {
       tabs[t].addEventListener('click', function() { switchTab(this.dataset.tab); });
     }
+    if (Runtime.syncMagicPanelTheme) Runtime.syncMagicPanelTheme();
   }
 
   function openPopup() {
@@ -3059,16 +3222,16 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
                   settings[_kn] = JSON.parse(JSON.stringify(data.settings[_kn]));
                 }
               }
-              settings.initialSnapshot = null; // will be rebuilt on next reset
               settings.theme = validTheme(settings.theme);
+              settings.initialSnapshot = null; // will be rebuilt on next reset
               saveSettings();
               applyTheme(settings.theme);
-              var _tb = doc.getElementById('menu-cleaner-theme-btn');
-              if (_tb) _tb.textContent = getThemeBtnLabel();
               refreshDiscoveryCache();
               applyHides();
               applyNativeReorder('extensionsSettings');
               refreshPopup();
+              var _themeBtn = doc.getElementById('menu-cleaner-theme-btn');
+              if (_themeBtn) _themeBtn.textContent = getThemeBtnLabel();
               if (win.toastr) win.toastr.success('设置已导入');
             } catch(err) {
               if (win.toastr) win.toastr.error('导入失败: ' + err.message);
@@ -3329,34 +3492,33 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
           dropTargetColumn = targetItem.dataset.column;
           doReorder(draggedIndex, parseInt(targetItem.dataset.index), draggedGroup);
         } else {
-          // Skip Y-distance fallback if drop is on a different column section
           var _skipFallback = false;
-          if (draggedItem) {
-            var _dropSec = target ? target.closest('.menu-cleaner-reorder-column-section') : null;
-            if (_dropSec && _dropSec.dataset.column !== undefined && _dropSec.dataset.column !== draggedItem.dataset.column) {
-              _skipFallback = true;
-            }
+          var _targetSection = target ? target.closest('.menu-cleaner-reorder-column-section') : null;
+          if (_targetSection && draggedItem && draggedItem.dataset.column !== _targetSection.dataset.column) {
+            _skipFallback = true;
           }
           // Same-column fallback: elementFromPoint often returns draggedItem itself on narrow layouts.
           // Find the nearest item in the same column by Y position.
           var _col = draggedItem ? draggedItem.dataset.column : null;
           var _allItems = doc.querySelectorAll('.menu-cleaner-reorder-item');
           var _nearest = null, _nearestDist = Infinity;
-          for (var _ti = 0; _ti < _allItems.length; _ti++) {
-            if (_allItems[_ti] === draggedItem) continue;
-            if (_allItems[_ti].dataset.group !== draggedGroup) continue;
-            if (_col !== null && _allItems[_ti].dataset.column !== _col) continue;
-            var _rc = _allItems[_ti].getBoundingClientRect();
-            var _cy = _rc.top + _rc.height / 2;
-            var _dist = Math.abs(e.clientY - _cy);
-            if (_dist < _nearestDist) { _nearestDist = _dist; _nearest = _allItems[_ti]; }
+          if (!_skipFallback) {
+            for (var _ti = 0; _ti < _allItems.length; _ti++) {
+              if (_allItems[_ti] === draggedItem) continue;
+              if (_allItems[_ti].dataset.group !== draggedGroup) continue;
+              if (_col !== null && _allItems[_ti].dataset.column !== _col) continue;
+              var _rc = _allItems[_ti].getBoundingClientRect();
+              var _cy = _rc.top + _rc.height / 2;
+              var _dist = Math.abs(e.clientY - _cy);
+              if (_dist < _nearestDist) { _nearestDist = _dist; _nearest = _allItems[_ti]; }
+            }
           }
-          if (!_skipFallback && _nearest && _nearest !== draggedItem) {
+          if (_nearest && _nearest !== draggedItem) {
             dropTargetColumn = _nearest.dataset.column;
             doReorder(draggedIndex, parseInt(_nearest.dataset.index), draggedGroup);
           } else {
             // Check for cross-column drop into an empty section
-            var targetSection = target ? target.closest('.menu-cleaner-reorder-column-section') : null;
+            var targetSection = _targetSection || (target ? target.closest('.menu-cleaner-reorder-column-section') : null);
             if (targetSection && draggedItem) {
               var targetCol = -1;
               var label = targetSection.querySelector('.menu-cleaner-reorder-column-label');
@@ -3887,6 +4049,8 @@ function renderHideView() {
     loadSettings();
     applyTheme(settings.theme);
     injectStyle();
+    Runtime.syncMagicPanelTheme = syncMagicPanelThemeBridge;
+    Runtime.syncMagicPanelTheme();
     try { console.debug('[MC] init step1 captureInitialSnapshot'); } catch(_) {}
 
     // Step 1: Capture initial snapshot (only on first run)
