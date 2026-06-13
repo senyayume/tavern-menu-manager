@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.4.4==
+// ==酒馆菜单管理器 v1.4.5==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -1469,6 +1469,9 @@ const MENU_REGISTRY = [
   gap: 10px;
   padding: 7px 18px 7px 28px;
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
   transition: background 0.15s;
   border-left: 3px solid transparent;
 }
@@ -2099,7 +2102,19 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       }
       settings.discoveryCache[group.id] = newItems;
 
-      // reorder list not mutated here — only user drag writes to reorder
+      // Prune stale selectors from reorder array (they accumulate when the discovery
+      // cache changes between rescans: old selectors stay in reorder but no longer
+      // match any item, making the sort view appear to not respond to drags).
+      if (settings.reorder && settings.reorder[group.id]) {
+        var _validSelectors = new Set();
+        for (var _hsi = 0; _hsi < group.items.length; _hsi++) _validSelectors.add(group.items[_hsi].selector);
+        for (var _nii = 0; _nii < newItems.length; _nii++) _validSelectors.add(newItems[_nii].selector);
+        var _pruned = settings.reorder[group.id].filter(function(s) { return _validSelectors.has(s); });
+        if (_pruned.length !== settings.reorder[group.id].length) {
+          settings.reorder[group.id] = _pruned;
+          try { console.debug('[MC] pruned stale reorder entries for', group.id); } catch(_) {}
+        }
+      }
     }
     saveSettings();
     return true;
@@ -2659,7 +2674,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
     for (var _di2 = 0; _di2 < oldDragItems.length; _di2++) {
       oldDragItems[_di2].classList.remove('drag-over-section');
     }
-    var ghosts = doc.querySelectorAll('.menu-cleaner-ghost');
+    var ghosts = doc.querySelectorAll('.menu-cleaner-ghost, .menu-cleaner-reorder-item.dragging:not([data-group])');
     for (var _g = 0; _g < ghosts.length; _g++) ghosts[_g].remove();
     var backdrop = doc.getElementById('menu-cleaner-backdrop');
     var popup = getPopup();
@@ -2994,7 +3009,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
       // ── Desktop pointer drag ─────────────────────────
       item.addEventListener('pointerdown', function(e) {
         if (e.button !== 0) return; // left button only
-        if (e.pointerType === 'touch') return; // touch handled by touchstart
         e.preventDefault(); // prevent text selection during drag
         dragActive = true;
         draggedItem = this;
@@ -3018,7 +3032,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
       item.addEventListener('pointermove', function(e) {
         if (!draggedItem) return;
-        if (e.pointerType === 'touch') return;
         if (touchGhost) {
           touchGhost.style.left = (e.clientX - touchGhost.offsetWidth / 2) + 'px';
           touchGhost.style.top = (e.clientY - 20) + 'px';
@@ -3051,7 +3064,6 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
 
       item.addEventListener('pointerup', function(e) {
         if (!draggedItem) return;
-        if (e.pointerType === 'touch') return;
 
         if (touchGhost) touchGhost.style.display = 'none';
         var target = doc.elementFromPoint(e.clientX, e.clientY);
@@ -3100,7 +3112,7 @@ button.menu-cleaner-settings-btn-full:active { background: rgba(255, 255, 255, 0
         cleanupDrag();
       });
 
-      item.addEventListener('pointercancel', function(e) { if (e.pointerType !== 'touch') cleanupDrag(); });
+      item.addEventListener('pointercancel', function() { cleanupDrag(); });
 
       // ── Mobile touch ─────────────────────────────────
       var supportsTouch = 'ontouchstart' in win || (win.navigator && win.navigator.maxTouchPoints > 0);

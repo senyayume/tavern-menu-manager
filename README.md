@@ -89,6 +89,13 @@ tavern-menu-manager/
 
 ## 📋 更新日志
 
+### v1.4.5 (2026-06-11)
+
+**修复**
+- 排序失效：refreshDiscoveryCache 自动清理 reorder 数组过期选择器
+- closePopup 清理触摸拖拽 ghost 残留
+- 移动端 touch-action: none 防止滚动
+
 ### v1.4.4 (2026-06-11)
 
 **修复**

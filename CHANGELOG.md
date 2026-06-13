@@ -1,3 +1,12 @@
+## [1.4.5] - 2026-06-11
+
+### Fixed
+
+- **排序失效：reorder 数组累计过期选择器**：多次自动扫描后发现缓存变化，`settings.reorder[]` 中的旧选择器未被清理，导致排序视图出现无法响应拖拽的死条目。`refreshDiscoveryCache` 末尾新增修剪步骤：只保留仍存在于硬编码项或当前发现缓存中的选择器。
+- **`closePopup` 未清理触摸拖拽残影**：touchstart 创建的 ghost 不带 `.menu-cleaner-ghost` 类，关闭弹窗时未被移除，随使用时间在 DOM 中积累。现一并清理 `.menu-cleaner-reorder-item.dragging` 残留。
+- **弹窗内元素缺少 `touch-action: none`**：移动端浏览器在 `.menu-cleaner-reorder-item` 上触发了页面滚动而非拖拽。CSS 已补上。
+
+---
 ## [1.4.4] - 2026-06-11
 
 ### Fixed
