@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.5.1==
+// ==酒馆菜单管理器 v1.5.2==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -395,6 +395,13 @@ const MENU_REGISTRY = [
       this.isSorting = false;
       this.sortDragId = null;
       this.rootDoc = Runtime.getRootDocument();
+      this.rootWin = this.rootDoc.defaultView || window;
+      this.instanceId = 'mp-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      this._listeners = [];
+      this._destroyed = false;
+      var oldInstance = this.rootWin.__magicPanelInstance;
+      if (oldInstance && oldInstance.destroy) oldInstance.destroy();
+      this.rootWin.__magicPanelInstance = this;
       this.activeMenu = MENU_CONFIGS[0];
       this.bindRetries = 0;
       this.injectStyles();
@@ -408,10 +415,33 @@ const MENU_REGISTRY = [
 
       // 应用面板宽度（手机端和电脑端统一生效）
       // Apply panel width - respect mobile media query (280px for narrow screens)
-      const win = this.rootDoc.defaultView || window;
+      const win = this.rootWin;
       const isMobile = win.innerWidth <= 600;
       const panelWidth = isMobile ? Math.min(PANEL_WIDTH, 280) : PANEL_WIDTH;
       this.panel.style.setProperty('--panel-width', panelWidth + 'px');
+    }
+
+    addListener(target, type, handler, options) {
+      if (!target || !target.addEventListener) return;
+      target.addEventListener(type, handler, options);
+      this._listeners.push({ target: target, type: type, handler: handler, options: options });
+    }
+
+    destroy() {
+      this._destroyed = true;
+      if (this._bindTimer) {
+        clearTimeout(this._bindTimer);
+        this._bindTimer = null;
+      }
+      for (var i = 0; i < this._listeners.length; i++) {
+        var l = this._listeners[i];
+        try { l.target.removeEventListener(l.type, l.handler, l.options); } catch(_) {}
+      }
+      this._listeners = [];
+      if (this.wrapper && this.wrapper.parentNode) this.wrapper.parentNode.removeChild(this.wrapper);
+      if (this.rootWin && this.rootWin.__magicPanelInstance === this) {
+        try { delete this.rootWin.__magicPanelInstance; } catch(_) { this.rootWin.__magicPanelInstance = null; }
+      }
     }
 
     injectStyles() {
@@ -472,22 +502,22 @@ const MENU_REGISTRY = [
     }
 
     bindEvents() {
-      this.wrapper.addEventListener('click', (e) => {
+      this.addListener(this.wrapper, 'click', (e) => {
         if (e.target === this.wrapper) this.close();
       });
-      this.rootDoc.addEventListener('click', (e) => {
+      this.addListener(this.rootDoc, 'click', (e) => {
         if (!this.wrapper.classList.contains('active')) return;
         if (this.panel.contains(e.target) || MENU_CONFIGS.some(config => e.target.closest && e.target.closest('#' + config.buttonId))) return;
         this.close();
       }, true);
-      this.rootDoc.addEventListener('keydown', (e) => {
+      this.addListener(this.rootDoc, 'keydown', (e) => {
         if (e.key === 'Escape' && this.wrapper.classList.contains('active')) {
           // Check via Runtime bridge (MC registers at init)
           if (Runtime.isMenuCleanerPopupOpen && Runtime.isMenuCleanerPopupOpen()) return;
           this.close();
         }
       });
-      this.sortBtn.addEventListener('click', () => {
+      this.addListener(this.sortBtn, 'click', () => {
         if (this.isEditing) return;
         if (this.isSorting) {
           this.saveSortOrder();
@@ -498,7 +528,7 @@ const MENU_REGISTRY = [
           this.sortBtn.classList.add('active');
         }
       });
-      this.editBtn.addEventListener('click', () => {
+      this.addListener(this.editBtn, 'click', () => {
         if (this.isSorting) this.exitSortMode();
         this.isEditing = !this.isEditing;
         this.editBtn.classList.toggle('editing', this.isEditing);
@@ -506,14 +536,14 @@ const MENU_REGISTRY = [
         if (this.isEditing) this.editSelection = new Set(getHiddenButtons());
         this.render();
       });
-      this.saveBtn.addEventListener('click', () => {
+      this.addListener(this.saveBtn, 'click', () => {
         saveHiddenButtons(Array.from(this.editSelection));
         this.isEditing = false;
         this.editBtn.classList.remove('editing');
         this.saveBar.classList.remove('active');
         this.render();
       });
-      this.settingsBtn.addEventListener('click', () => {
+      this.addListener(this.settingsBtn, 'click', () => {
         // Open MenuCleaner's popup via Runtime bridge (MC registers at init)
         if (Runtime.openMenuCleanerPopup) { Runtime.openMenuCleanerPopup(); return; }
       });
@@ -521,10 +551,10 @@ const MENU_REGISTRY = [
       this.scaleBar = this.panel.querySelector('.magic-panel-scale-bar');
       this.scaleSlider = this.panel.querySelector('.magic-panel-scale-slider');
       this.scaleSliderVal = this.panel.querySelector('.scale-value');
-      this.scaleBtn.addEventListener('click', () => {
+      this.addListener(this.scaleBtn, 'click', () => {
         this.scaleBar.classList.toggle('active');
       });
-      this.scaleSlider.addEventListener('input', () => {
+      this.addListener(this.scaleSlider, 'input', () => {
         const pct = parseInt(this.scaleSlider.value);
         const scale = pct / 100;
         this.panel.style.setProperty('--content-scale', scale);
@@ -532,13 +562,13 @@ const MENU_REGISTRY = [
         Store.mp.set(STORAGE_CONTENT_SCALE, scale);
       });
       this.fitBtn = this.panel.querySelector('.magic-panel-fit-btn');
-      this.fitBtn.addEventListener('click', () => {
+      this.addListener(this.fitBtn, 'click', () => {
         this.fitToContent();
       });
       // Reposition panel on window resize
-      this.rootDoc.defaultView.addEventListener('resize', () => {
+      this.addListener(this.rootWin, 'resize', () => {
         if (this.wrapper.classList.contains('active')) {
-          const win = this.rootDoc.defaultView || window;
+          const win = this.rootWin;
           const isMobile = win.innerWidth <= 600;
           this.panel.style.setProperty('--panel-width', (isMobile ? Math.min(PANEL_WIDTH, 280) : PANEL_WIDTH) + 'px');
           this.position();
@@ -547,17 +577,19 @@ const MENU_REGISTRY = [
     }
 
     ensureMenuBindings() {
+      if (this._destroyed) return;
       var allBound = true;
       for (var _ec = 0; _ec < MENU_CONFIGS.length; _ec++) {
         var btn = this.rootDoc.getElementById(MENU_CONFIGS[_ec].buttonId);
         if (btn) {
-          if (btn.dataset.magicPanelBound !== '1') allBound = false;
+          if (btn.dataset.magicPanelBound !== '1' || btn.dataset.magicPanelOwner !== this.instanceId) allBound = false;
         }
         // Button not in DOM yet — skip, don't count as failure
       }
       if (allBound || this.bindRetries >= 60) return;
       this.bindRetries++;
-      setTimeout(() => {
+      this._bindTimer = setTimeout(() => {
+        if (this._destroyed) return;
         this.blockOriginalMenus();
         this.ensureMenuBindings();
       }, 500);
@@ -664,9 +696,11 @@ const MENU_REGISTRY = [
     blockOriginalMenus() {
       MENU_CONFIGS.forEach(config => {
         const btn = this.rootDoc.getElementById(config.buttonId);
-        if (!btn || btn.dataset.magicPanelBound === '1') return;
+        if (!btn) return;
+        if (btn.dataset.magicPanelBound === '1' && btn.dataset.magicPanelOwner === this.instanceId) return;
         const newBtn = btn.cloneNode(true);
         newBtn.dataset.magicPanelBound = '1';
+        newBtn.dataset.magicPanelOwner = this.instanceId;
         btn.parentNode.replaceChild(newBtn, btn);
         newBtn.addEventListener('click', (e) => {
           e.stopPropagation(); e.preventDefault();
@@ -974,12 +1008,37 @@ const MENU_REGISTRY = [
     initDragHandlers() {
       if (this.__dragInited) return;
       this.__dragInited = true;
-      var _dnd = { el: null, id: null, lastTarget: null };
+      var _dnd = { el: null, id: null, lastTarget: null, parent: null, items: [], marked: null };
+
+      var _refreshItems = function(parent) {
+        _dnd.parent = parent || null;
+        _dnd.items = parent ? Array.from(parent.querySelectorAll('.magic-panel-btn')) : [];
+      };
+
+      var _syncIndexes = function() {
+        for (var i = 0; i < _dnd.items.length; i++) _dnd.items[i].dataset.idx = i;
+      };
+
+      var _markTarget = function(target) {
+        if (_dnd.marked && _dnd.marked !== target) _dnd.marked.classList.remove('sort-target');
+        if (target && target !== _dnd.marked) target.classList.add('sort-target');
+        _dnd.marked = target || null;
+      };
+
+      var _startDrag = function(btn) {
+        _refreshItems(btn.parentNode);
+        _dnd.el = btn;
+        _dnd.id = btn.dataset.btnId;
+        _dnd.lastTarget = null;
+        _dnd.marked = null;
+        btn.classList.add('sort-dragging');
+      };
 
       var _swapBtns = function(fromEl, toEl) {
         if (!fromEl || !toEl || fromEl === toEl) return;
         var parent = fromEl.parentNode;
-        var all = Array.from(parent.querySelectorAll('.magic-panel-btn'));
+        if (_dnd.parent !== parent || !_dnd.items.length) _refreshItems(parent);
+        var all = _dnd.items;
         var fromIdx = all.indexOf(fromEl);
         var toIdx = all.indexOf(toEl);
         if (fromIdx < 0 || toIdx < 0) return;
@@ -988,57 +1047,54 @@ const MENU_REGISTRY = [
         } else {
           parent.insertBefore(fromEl, toEl);
         }
-        parent.querySelectorAll('.magic-panel-btn').forEach(function(b, i) { b.dataset.idx = i; });
+        _refreshItems(parent);
+        _syncIndexes();
       };
 
-      this.panel.addEventListener('mousedown', function(e) {
+      this.addListener(this.panel, 'mousedown', function(e) {
         if (!this.isSorting) return;
         var btn = e.target.closest('.magic-panel-btn');
         if (!btn) return;
-        _dnd = { el: btn, id: btn.dataset.btnId, lastTarget: null };
-        btn.classList.add('sort-dragging');
+        _startDrag(btn);
         e.preventDefault();
       }.bind(this));
 
-      this.rootDoc.addEventListener('mousemove', function(e) {
+      this.addListener(this.rootDoc, 'mousemove', function(e) {
         if (!_dnd.el) return;
         var el = this.rootDoc.elementFromPoint(e.clientX, e.clientY);
         var target = el ? el.closest('.magic-panel-btn') : null;
         // Only swap on element boundary crossing, not every pixel
         if (target === _dnd.lastTarget) return;
         _dnd.lastTarget = target;
-        // Clear sort-target on all buttons first
-        _dnd.el.parentNode.querySelectorAll('.magic-panel-btn.sort-target').forEach(function(b) { b.classList.remove('sort-target'); });
         if (target && target !== _dnd.el && target.parentNode === _dnd.el.parentNode) {
           _swapBtns(_dnd.el, target);
-          target.classList.add('sort-target');
+          _markTarget(target);
+        } else {
+          _markTarget(null);
         }
       }.bind(this));
 
       var _endDrag = function() {
         if (!_dnd.el) return;
         _dnd.el.classList.remove('sort-dragging');
-        if (_dnd.el.parentNode) {
-          _dnd.el.parentNode.querySelectorAll('.magic-panel-btn.sort-target').forEach(function(b) { b.classList.remove('sort-target'); });
-        }
-        _dnd = { el: null, id: null, lastTarget: null };
+        _markTarget(null);
+        _dnd = { el: null, id: null, lastTarget: null, parent: null, items: [], marked: null };
       };
 
-      this.rootDoc.addEventListener('mouseup', _endDrag);
+      this.addListener(this.rootDoc, 'mouseup', _endDrag);
 
       // Touch support
-      this.panel.addEventListener('touchstart', function(e) {
+      this.addListener(this.panel, 'touchstart', function(e) {
         if (!this.isSorting) return;
         var touch = e.touches[0];
         var btn = this.rootDoc.elementFromPoint(touch.clientX, touch.clientY);
         if (btn) btn = btn.closest('.magic-panel-btn');
         if (!btn) return;
-        _dnd = { el: btn, id: btn.dataset.btnId, lastTarget: null };
-        btn.classList.add('sort-dragging');
+        _startDrag(btn);
         e.preventDefault();
       }.bind(this), { passive: false });
 
-      this.rootDoc.addEventListener('touchmove', function(e) {
+      this.addListener(this.rootDoc, 'touchmove', function(e) {
         if (!_dnd.el) return;
         var touch = e.touches[0];
         var el = this.rootDoc.elementFromPoint(touch.clientX, touch.clientY);
@@ -1046,16 +1102,16 @@ const MENU_REGISTRY = [
         // Only swap on element boundary crossing, not every pixel
         if (target === _dnd.lastTarget) return;
         _dnd.lastTarget = target;
-        // Clear sort-target on all buttons first
-        _dnd.el.parentNode.querySelectorAll('.magic-panel-btn.sort-target').forEach(function(b) { b.classList.remove('sort-target'); });
         if (target && target !== _dnd.el && target.parentNode === _dnd.el.parentNode) {
           _swapBtns(_dnd.el, target);
-          target.classList.add('sort-target');
+          _markTarget(target);
+        } else {
+          _markTarget(null);
         }
         e.preventDefault();
       }.bind(this), { passive: false });
 
-      this.rootDoc.addEventListener('touchend', _endDrag);
+      this.addListener(this.rootDoc, 'touchend', _endDrag);
     }
 
     exitSortMode() {
@@ -1156,19 +1212,32 @@ const MENU_REGISTRY = [
   ];
 
   // ── Settings persistence via localStorage ─────────────────────
-  const SCRIPT_VERSION = '1.5.1'; // keep in sync with header
+  const SCRIPT_VERSION = '1.5.2'; // keep in sync with header
 
-const defaultSettings = {
-    enabled: true,
-    hiddenSelectors: {},
-    discoveryCache: {},  // { groupId: [{selector, label, column?}, ...] }
-    reorder: {},          // { groupId: [selector, ...] }
-    initialSnapshot: null, // set once on first init, cleared by "清除插件数据"
-    rescanToast: false,
-    columnMode: 'dual',  // 'single' | 'dual'
-    theme: 'default'
-  };
+  function makeDefaultSettings() {
+    return {
+      enabled: true,
+      hiddenSelectors: {},
+      discoveryCache: {},  // { groupId: [{selector, label, column?}, ...] }
+      reorder: {},          // { groupId: [selector, ...] }
+      initialSnapshot: null, // set once on first init, cleared by "清除插件数据"
+      rescanToast: false,
+      columnMode: 'dual',  // 'single' | 'dual'
+      theme: 'default'
+    };
+  }
 
+  function normalizeSettings(saved) {
+    var base = makeDefaultSettings();
+    if (!saved || typeof saved !== 'object') return base;
+    var merged = Object.assign(base, saved);
+    if (!saved.hiddenSelectors || typeof saved.hiddenSelectors !== 'object' || Array.isArray(saved.hiddenSelectors)) merged.hiddenSelectors = {};
+    if (!saved.discoveryCache || typeof saved.discoveryCache !== 'object' || Array.isArray(saved.discoveryCache)) merged.discoveryCache = {};
+    if (!saved.reorder || typeof saved.reorder !== 'object' || Array.isArray(saved.reorder)) merged.reorder = {};
+    if (merged.columnMode !== 'single' && merged.columnMode !== 'dual') merged.columnMode = 'dual';
+    merged.theme = validTheme(merged.theme);
+    return merged;
+  }
   let settings = {};
 
   // ── Theme presets ──
@@ -1465,10 +1534,10 @@ function applyTheme(themeName) {
     try {
       const saved = Store.mc.getAll();
       if (saved && typeof saved === 'object' && Object.keys(saved).length) {
-        settings = Object.assign({}, defaultSettings, saved);
+        settings = normalizeSettings(saved);
         try { console.debug('[MC] loadSettings reorder:', JSON.stringify(settings.reorder)); } catch(_) {}
       } else {
-        settings = Object.assign({}, defaultSettings);
+        settings = makeDefaultSettings();
         try { console.debug('[MC] loadSettings: no saved data, using defaults'); } catch(_) {}
       }
 
@@ -1514,7 +1583,7 @@ function applyTheme(themeName) {
       // At load time, extensions may not have injected their items yet, so don't prune here.
     } catch (e) {
       console.warn('[酒馆菜单管理器] 读取设置失败，使用默认值', e);
-      settings = Object.assign({}, defaultSettings);
+      settings = makeDefaultSettings();
     }
   }
 
@@ -2345,6 +2414,7 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
   }
 
   function refreshDiscoveryCache(changedOnly) {
+    var changed = false;
     // Preserve user's saved column preferences before physical scan resets them
     var _savedCols = {};
     if (settings.discoveryCache) {
@@ -2436,7 +2506,10 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
           }
         }
       }
-      settings.discoveryCache[group.id] = newItems;
+      if (JSON.stringify(oldCache || []) !== JSON.stringify(newItems)) {
+        settings.discoveryCache[group.id] = newItems;
+        changed = true;
+      }
 
       // Prune stale selectors from reorder array (they accumulate when the discovery
       // cache changes between rescans: old selectors stay in reorder but no longer
@@ -2448,12 +2521,13 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
         var _pruned = settings.reorder[group.id].filter(function(s) { return _validSelectors.has(s); });
         if (_pruned.length !== settings.reorder[group.id].length) {
           settings.reorder[group.id] = _pruned;
+          changed = true;
           try { console.debug('[MC] pruned stale reorder entries for', group.id); } catch(_) {}
         }
       }
     }
-    saveSettings();
-    return true;
+    if (changed) saveSettings();
+    return changed;
   }
 
   // ── Column cache helper ─────────────────────────────────────────
@@ -3149,7 +3223,7 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
     var clearBtn = doc.getElementById('menu-cleaner-clear-data');
     clearBtn && clearBtn.addEventListener('click', function() {
       if (!win.confirm('确定要清除所有插件配置数据吗？此操作不可撤销。')) return;
-      settings = Object.assign({}, defaultSettings);
+      settings = makeDefaultSettings();
       saveSettings();
       clearAllHides();
       activeTab = 'hide';
