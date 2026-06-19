@@ -1,3 +1,12 @@
+## [1.5.3] - 2026-06-18
+
+### Performance
+
+- **移除主题 CSS 渲染开销**：从 4 套主题中移除 `backdrop-filter: blur(4px/3px)`（移动端昂贵模糊效果）、`animation: mc-shift infinite`（渐变背景无限流动）、`animation: mc-glow infinite`（阴影脉冲）、`background-size: 200%`（大画布渲染），共 16 处。保留主题色系和静态渐变背景。
+- **8 项 JS 优化**：`getMcHiddenIds()` 提至循环外避免重复 JSON.parse、内联样式短路 `getComputedStyle` 减少强制重排、`syncMagicPanelTheme` 延后到 rAF 不阻塞首帧、`getIconClass` 先查自身 class 免子树搜索、`_cachedMcHidden` 消除冗余 localStorage 读取、`btnIdxMap` O(1) 替代 O(n²) indexOf、`performance.now()` 细粒度诊断日志。
+- **主题脏检测快速路径**：`syncMagicPanelThemeBridge()` 检查 CSS 未变且面板已有内联主题时跳过全文同步，重复打开面板零开销。
+
+---
 ## [1.5.2] - 2026-06-18
 
 ### Changed
@@ -8,15 +17,6 @@
 - **魔法面板排序拖拽缓存**：拖拽开始时缓存当前按钮列表，交换后同步索引，减少移动过程中的重复 `querySelectorAll()` 查询。
 - **酒馆助手 JSON 同步**：导出的 `酒馆助手脚本-酒馆菜单管理器-优化版.json` 内嵌脚本更新到 v1.5.2。
 
----
-## [1.5.1] - 2026-06-13
-
-### Fixed
-
-- **跨栏拖拽被 Y 距离降级劫持**：pointerup 的 Y 距离最近元素匹配只搜同列，跨栏拖到另一列空白区时总能找到同列元素，跨列 section 降落逻辑永远跑不到。新增 `_skipFallback` 检测：落点在异列 section 时跳过 Y 距离匹配。
-- **导入设置后失效主题值被持久化**：`saveSettings()` 在 `settings.theme = validTheme(...)` 之前调用，无效主题字符串已写入 localStorage。调换顺序。
-
----
 ## [1.5.1] - 2026-06-13
 
 ### Fixed

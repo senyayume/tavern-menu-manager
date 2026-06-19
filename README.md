@@ -89,6 +89,13 @@ tavern-menu-manager/
 
 ## 📋 更新日志
 
+### v1.5.3 (2026-06-18)
+
+**性能优化**
+- 移除主题 CSS 渲染开销：`backdrop-filter: blur`、`mc-shift`/`mc-glow` 无限动画、`background-size: 200%`（共 16 处）
+- 8 项 JS 优化：getMcHiddenIds 外提、getComputedStyle 短路、syncTheme rAF 延后、getIconClass 优先自身、cachedMcHidden 复用、btnIdxMap O(1)、perf 诊断日志
+- 主题脏检测：CSS 未变 + 面板已有主题时跳过全文同步，重复打开零开销
+
 ### v1.5.2 (2026-06-18)
 
 **优化**
@@ -99,12 +106,6 @@ tavern-menu-manager/
 
 **发布**
 - 同步酒馆助手 JSON 内嵌脚本到 v1.5.2
-
-### v1.5.1 (2026-06-13)
-
-**修复**
-- 跨栏拖拽被 Y 距离降级劫持：新增跨列跳过检测
-- 导入设置后无效 theme 值被持久化：调换 saveSettings 与 validTheme 顺序
 
 ### v1.5.1 (2026-06-13)
 
