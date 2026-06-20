@@ -1,3 +1,8 @@
+## [1.5.5] - 2026-06-20
+### Added
+- Shadow DOM button-color persistence: 保存/恢复 #qr--color 的 shadowRoot 内颜色
+- 关面板时 50/200/500/1500ms 四级重试恢复，避免 ST 异步渲染覆盖
+
 ## [1.5.4] - 2026-06-18
 
 ### Fixed

@@ -89,7 +89,7 @@ tavern-menu-manager/
 
 ## 📋 更新日志
 
-### v1.5.4 (2026-06-18)
+### v1.5.5 (2026-06-18)
 
 **修复**
 - syncMagicPanelTheme 快速路径失效：静态标志 `_mc_themeApplied` 替代 `getPropertyValue('--mc-bg')`，消除重复全量同步 500-2000ms 延时

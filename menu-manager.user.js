@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.5.4==
+// ==酒馆菜单管理器 v1.5.5==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -1210,6 +1210,63 @@ const MENU_REGISTRY = [
   let extPanelVisible = false;
   let rescanTimer = null;
   let dragActive = false; // set while user is dragging a reorder item
+
+  // ── Button-color persistence (supports shadow DOM) ────────
+  var _savedButtonColors = {};
+
+  function _saveButtonColors() {
+    _savedButtonColors = {};
+    // 1. Light DOM: .button-color inside extensions containers
+    var containers = ['extensions_settings', 'extensions_settings2'];
+    for (var _ci = 0; _ci < containers.length; _ci++) {
+      var con = doc.getElementById(containers[_ci]);
+      if (!con) continue;
+      var spans = con.querySelectorAll('.button-color');
+      for (var _s = 0; _s < spans.length; _s++) {
+        var ext = spans[_s].closest('.inline-drawer, .extension');
+        var key = (ext && ext.id && ext.id + '_' + _s) || 'l_' + _ci + '_' + _s;
+        if (spans[_s].style.background) _savedButtonColors[key] = spans[_s].style.background;
+      }
+    }
+    // 2. Shadow DOM: custom elements with shadowRoot that contain a color span
+    var _shadowCandidates = [doc.getElementById('qr--color')];
+    for (var _sc = 0; _sc < _shadowCandidates.length; _sc++) {
+      var _el = _shadowCandidates[_sc];
+      if (!_el || !_el.shadowRoot) continue;
+      var _colorSpan = _el.shadowRoot.querySelector('div > button > span');
+      if (_colorSpan && _colorSpan.style.background) {
+        _savedButtonColors[_el.id || 'shadow_' + _sc] = _colorSpan.style.background;
+      }
+    }
+  }
+
+  function _restoreButtonColors() {
+    // 1. Light DOM
+    var containers = ['extensions_settings', 'extensions_settings2'];
+    for (var _ci2 = 0; _ci2 < containers.length; _ci2++) {
+      var _con = doc.getElementById(containers[_ci2]);
+      if (!_con) continue;
+      var _spans = _con.querySelectorAll('.button-color');
+      for (var _s2 = 0; _s2 < _spans.length; _s2++) {
+        var _ext = _spans[_s2].closest('.inline-drawer, .extension');
+        var _key = (_ext && _ext.id && _ext.id + '_' + _s2) || 'l_' + _ci2 + '_' + _s2;
+        if (_savedButtonColors[_key]) _spans[_s2].style.background = _savedButtonColors[_key];
+      }
+    }
+    // 2. Shadow DOM
+    var _shadowCandidates2 = [doc.getElementById('qr--color')];
+    for (var _sc2 = 0; _sc2 < _shadowCandidates2.length; _sc2++) {
+      var _el2 = _shadowCandidates2[_sc2];
+      if (!_el2 || !_el2.shadowRoot) continue;
+      var _colorSpan2 = _el2.shadowRoot.querySelector('div > button > span');
+      var _key2 = _el2.id || 'shadow_' + _sc2;
+      if (_colorSpan2 && _savedButtonColors[_key2]) {
+        _colorSpan2.style.background = _savedButtonColors[_key2];
+      }
+    }
+  }
+  // ──────────────────────────────────────────────────────────
+
   let importFileInput = null; // hidden file input for importing settings (hoisted to survive re-renders)
   let suppressObserver = false; // suppress MutationObserver during programmatic DOM moves
   const nativeHomes = new Map();
@@ -1232,7 +1289,7 @@ const MENU_REGISTRY = [
   ];
 
   // ── Settings persistence via localStorage ─────────────────────
-  const SCRIPT_VERSION = '1.5.4'; // keep in sync with header
+  const SCRIPT_VERSION = '1.5.5'; // keep in sync with header
 
   function makeDefaultSettings() {
     return {
@@ -3095,6 +3152,7 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
   }
 
   function openPopup() {
+    _saveButtonColors();
     createPopupDOM();
     // Refresh discovery cache so newly injected extension buttons are visible
     refreshDiscoveryCache();
@@ -3123,6 +3181,12 @@ button.menu-cleaner-settings-btn-full:active { background: var(--mc-active-bg); 
     if (popup) popup.style.display = 'none';
     // Refresh extension panel to reflect any reorder changes made in popup
     if (extPanelVisible) renderExtensionsPanel();
+    // Restore button colors (schedule before applyNativeReorder so retries fire even if it throws)
+    var _doRestore = function() { _restoreButtonColors(); };
+    setTimeout(_doRestore, 50);
+    setTimeout(_doRestore, 200);
+    setTimeout(_doRestore, 500);
+    setTimeout(_doRestore, 1500);
     applyNativeReorder('extensionsSettings');
   }
 
