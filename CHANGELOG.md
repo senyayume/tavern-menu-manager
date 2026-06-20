@@ -1,3 +1,10 @@
+## [1.5.6] - 2026-06-20
+
+### Fixed
+- QR 颜色在页面刷新后被 ST 重渲染重置：关闭精简器时把 QR Shadow DOM 颜色持久化到 settings，init 中 applyNativeReorder 后从 settings 恢复，跨会话保持
+
+---
+
 ## [1.5.5] - 2026-06-20
 ### Added
 - Shadow DOM button-color persistence: 保存/恢复 #qr--color 的 shadowRoot 内颜色

@@ -89,6 +89,13 @@ tavern-menu-manager/
 
 ## 📋 更新日志
 
+### v1.5.6 (2026-06-20)
+
+**修复**
+- QR 颜色在页面刷新后被 ST 重渲染重置：关闭精简器时把 QR Shadow DOM 颜色持久化到 settings，init 中 applyNativeReorder 后从 settings 恢复，跨会话保持
+
+---
+
 ### v1.5.5 (2026-06-20)
 
 **修复**

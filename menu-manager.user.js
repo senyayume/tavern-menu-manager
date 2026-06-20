@@ -1262,6 +1262,11 @@ const MENU_REGISTRY = [
       var _key2 = _el2.id || 'shadow_' + _sc2;
       if (_colorSpan2 && _savedButtonColors[_key2]) {
         _colorSpan2.style.background = _savedButtonColors[_key2];
+        // Persist so init can restore on page refresh
+        if (settings.qrSavedColor !== _savedButtonColors[_key2]) {
+          settings.qrSavedColor = _savedButtonColors[_key2];
+          saveSettings();
+        }
       }
     }
   }
@@ -4235,6 +4240,22 @@ function renderHideView() {
     if (settings.enabled) {
       applyHides();
       applyNativeReorder('extensionsSettings');
+      // Restore QR Shadow DOM color from persistent storage (survives ST re-render on page load)
+      if (settings.qrSavedColor) {
+        (function(_qrClr) {
+          var _tryRestore = function(_retries) {
+            _retries = _retries || 0;
+            if (_retries > 20) return;
+            var _qrEl = doc.getElementById('qr--color');
+            if (_qrEl && _qrEl.shadowRoot) {
+              var _csEl = _qrEl.shadowRoot.querySelector('div > button > span');
+              if (_csEl) { _csEl.style.background = _qrClr; return; }
+            }
+            win.setTimeout(function() { _tryRestore(_retries + 1); }, 100);
+          };
+          _tryRestore();
+        })(settings.qrSavedColor);
+      }
     }
     try { console.debug('[MC] init step5 setupKeyboard/registerSlashCmd/setupAutoRescan'); } catch(_) {}
 
@@ -4249,6 +4270,14 @@ function renderHideView() {
       try { console.debug('[MC] delayed rescan starting'); } catch(_) {}
       refreshDiscoveryCache();
       if (settings.enabled) applyNativeReorder('extensionsSettings');
+      // Restore QR color after delayed reorder too
+      if (settings.qrSavedColor) {
+        var _qrEl2 = doc.getElementById('qr--color');
+        if (_qrEl2 && _qrEl2.shadowRoot) {
+          var _csEl2 = _qrEl2.shadowRoot.querySelector('div > button > span');
+          if (_csEl2) _csEl2.style.background = settings.qrSavedColor;
+        }
+      }
       try { console.debug('[MC] delayed rescan done, reorder:', JSON.stringify(settings.reorder['extensionsSettings'])); } catch(_) {}
       // Clean up stale discoveryCache entries not in DOM
       cleanupDiscoveryCache();
