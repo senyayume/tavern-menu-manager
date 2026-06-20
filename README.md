@@ -94,7 +94,7 @@ tavern-menu-manager/
 **修复**
 - Quick Reply 颜色在打开/关闭精简器后被 ST 重渲染重置：新增 Shadow DOM 颜色持久化，保存 `#qr--color` 的 shadowRoot 内颜色，关面板后 50/200/500/1500ms 四级重试恢复
 
-### v1.5.4 (2026-06-18)
+### v1.5.4 (2026-06-20)
 
 **修复**
 - syncMagicPanelTheme 快速路径失效：静态标志 `_mc_themeApplied` 替代 `getPropertyValue`，消除重复全量同步 500-2000ms 延时
