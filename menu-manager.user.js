@@ -1,4 +1,4 @@
-// ==酒馆菜单管理器 v1.5.3==
+// ==酒馆菜单管理器 v1.5.4==
 // 两大模块：魔法面板（左下弹出快捷操作）+ 菜单精简（隐藏/排序/扩展管理）
 // 共享核心：Store（持久化层）+ Runtime（工具函数）+ MENU_REGISTRY（唯一配置源）
 // 两控制器隔离：通过 Runtime 桥接协作，不互相穿透内部实现
@@ -1232,7 +1232,7 @@ const MENU_REGISTRY = [
   ];
 
   // ── Settings persistence via localStorage ─────────────────────
-  const SCRIPT_VERSION = '1.5.3'; // keep in sync with header
+  const SCRIPT_VERSION = '1.5.4'; // keep in sync with header
 
   function makeDefaultSettings() {
     return {
@@ -1346,6 +1346,8 @@ const MENU_REGISTRY = [
     return THEMES[t] ? t : 'default';
   }
 
+var _mc_themeApplied = false;
+
 function applyTheme(themeName) {
     var existing = doc.getElementById('mc-theme');
     if (existing) existing.remove();
@@ -1358,9 +1360,11 @@ function applyTheme(themeName) {
         if (mirror) mirror.remove();
         resetMagicPanelInlineTheme(rootDoc);
       }
+      _mc_themeApplied = false;
       if (Runtime.syncMagicPanelTheme) Runtime.syncMagicPanelTheme();
       return;
     }
+    _mc_themeApplied = false;
     var style = doc.createElement('style');
     style.id = 'mc-theme';
     style.textContent = THEMES[t].css;
@@ -1452,8 +1456,7 @@ function applyTheme(themeName) {
     var _ts = doc.getElementById('mc-theme');
     var _mr = rootDoc.getElementById('magic-panel-theme-mirror');
     var _cssOk = _ts && _mr && _mr.textContent === _ts.textContent;
-    var _alreadyThemed = mp.style && mp.style.getPropertyValue('--mc-bg');
-    if (_cssOk && _alreadyThemed) {
+    if (_cssOk && _mc_themeApplied) {
       console.timeEnd('[MP] syncTheme');
       return;
     }
@@ -1549,6 +1552,7 @@ function applyTheme(themeName) {
     } finally {
       if (probe && probe.parentNode) probe.parentNode.removeChild(probe);
     }
+    _mc_themeApplied = true;
     console.timeEnd('[MP] syncTheme');
   }
 

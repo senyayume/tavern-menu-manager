@@ -1,3 +1,10 @@
+## [1.5.4] - 2026-06-18
+
+### Fixed
+
+- **syncMagicPanelTheme 快速路径失效**：`_alreadyThemed` 用 `mp.style.getPropertyValue('--mc-bg')` 检测不可靠（`resetMagicPanelInlineTheme` 可能清掉内联样式，或首次同步未写回）。替换为静态标志 `_mc_themeApplied`，全量同步成功后置 `true`，`applyTheme()` 时重置为 `false`。配合 `_cssOk` 双保险，消除每次开面板 500-2000ms 重复同步开销。
+
+---
 ## [1.5.3] - 2026-06-18
 
 ### Performance
